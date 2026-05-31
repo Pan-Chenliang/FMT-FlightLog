@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parse FMT MLog"
+  short_description: "Parse and develop browser-side FMT MLog tools."
+  default_prompt: "Use this skill when working on FMT MLog parsing or visualizing flight logs in this repository."

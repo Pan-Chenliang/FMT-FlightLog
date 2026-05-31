@@ -19,6 +19,10 @@
 npm test
 ```
 
+## 开发技能
+
+仓库内包含 Codex 技能 `.codex/skills/parse-fmt-mlog`，记录了 MLog 二进制格式、解析流程、验证命令和当前项目文件职责。后续修改解析器或图表逻辑时，先读取该技能。
+
 ## GitHub Pages
 
 当前版本不需要构建步骤。仓库推送到 GitHub 后，可在仓库 Settings -> Pages 中选择从 `main` 分支根目录发布。
