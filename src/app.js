@@ -113,6 +113,11 @@ function showTransferProgress(label, loaded = 0, total = 0, speed = 0) {
   if (!flightTransfer || !flightTransferLabel || !flightTransferStats || !flightTransferProgress) {
     return;
   }
+  if (transferProgressFrame !== null) {
+    cancelAnimationFrame(transferProgressFrame);
+    transferProgressFrame = null;
+    pendingTransferProgress = null;
+  }
   flightTransfer.hidden = false;
   flightTransferLabel.textContent = label;
 

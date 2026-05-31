@@ -175,6 +175,7 @@ export class MavlinkFtpClient {
         clearTimeout(waiter.timer);
       }
       this.waiters = [];
+      this._messageQueue = [];
       this.readLoopPromise = null;
     } catch (err) {
       console.error("MavlinkFtpClient: close error", err);
@@ -330,7 +331,12 @@ export class MavlinkFtpClient {
     const srcSystem = buf[5];
     const srcComponent = buf[6];
     const msgId = buf[7] | (buf[8] << 8) | (buf[9] << 16);
-    const payload = buf.slice(10, 10 + length);
+    let payload = buf.slice(10, 10 + length);
+    if (msgId === FILE_TRANSFER_PROTOCOL_ID && payload.length < 254) {
+      const paddedPayload = new Uint8Array(254);
+      paddedPayload.set(payload);
+      payload = paddedPayload;
+    }
     return { msgId, payload, srcSystem, srcComponent };
   }
 
@@ -473,18 +479,18 @@ export class MavlinkFtpClient {
   waitForResponse(sequence, requestOpcode, timeoutMs = 3000) {
     return new Promise((resolve, reject) => {
       const nextSequence = (sequence + 1) & 0xffff;
-      
+
       const isMatch = (message) => {
-          const opcodeOk = message.opcode === FTP_OPCODE.ACK || message.opcode === FTP_OPCODE.NAK;
-          const seqOk = message.sequence === nextSequence;
-          const reqOk = message.requestOpcode === requestOpcode;
-          return opcodeOk && reqOk && seqOk;
+        const opcodeOk = message.opcode === FTP_OPCODE.ACK || message.opcode === FTP_OPCODE.NAK;
+        const seqOk = message.sequence === nextSequence;
+        const reqOk = message.requestOpcode === requestOpcode;
+        return opcodeOk && reqOk && seqOk;
       };
 
       const qIndex = this._messageQueue.findIndex(isMatch);
-      if(qIndex >= 0) {
-          const msg = this._messageQueue.splice(qIndex, 1)[0];
-          return resolve(msg);
+      if (qIndex >= 0) {
+        const msg = this._messageQueue.splice(qIndex, 1)[0];
+        return resolve(msg);
       }
 
       const waiter = {
@@ -504,6 +510,12 @@ export class MavlinkFtpClient {
 
   waitForFtpMessage(matches, timeoutMs = 3000) {
     return new Promise((resolve, reject) => {
+      const qIndex = this._messageQueue.findIndex(matches);
+      if (qIndex >= 0) {
+        const msg = this._messageQueue.splice(qIndex, 1)[0];
+        return resolve(msg);
+      }
+
       const waiter = {
         matches,
         resolve,
@@ -514,6 +526,19 @@ export class MavlinkFtpClient {
         }, timeoutMs),
       };
       this.waiters.push(waiter);
+    });
+  }
+
+  async settleFtpStream(durationMs = 300) {
+    await new Promise((resolve) => setTimeout(resolve, durationMs));
+    this.rxBuffer.length = 0;
+    this._messageQueue.length = 0;
+    this.waiters = this.waiters.filter((waiter) => {
+      clearTimeout(waiter.timer);
+      try {
+        waiter.reject?.(new Error("FTP stream settled"));
+      } catch (_) {}
+      return false;
     });
   }
 
@@ -619,15 +644,15 @@ export class MavlinkFtpClient {
   async resetSessions() {
     const sequence = this.nextFtpSequence();
     try {
-      await this.request({
+      await this.sendFtpCommand({
         sequence,
         opcode: FTP_OPCODE.RESET_SESSIONS,
         size: 0,
         offset: 0,
         data: new Uint8Array(0),
-      }, 1);
+      });
     } catch (error) {
-      console.warn(`重置 MAVLink FTP 会话失败：${error.message}`);
+      console.warn(`发送 MAVLink FTP 重置会话失败：${error.message}`);
     }
   }
 
@@ -662,7 +687,6 @@ export class MavlinkFtpClient {
     }
 
     const file = new Uint8Array(expectedSize);
-    const missingRanges = [];
     let expectedOffset = 0;
     let receivedBytes = 0;
 
@@ -675,24 +699,11 @@ export class MavlinkFtpClient {
       });
     };
 
-    const markMissing = (offset, length) => {
-      if (length <= 0) {
-        return;
-      }
-      missingRanges.push({ offset, length });
-    };
-
     const storeChunk = (offset, data) => {
       if (data.length === 0 || offset >= expectedSize) {
         return;
       }
       const boundedLength = Math.min(data.length, expectedSize - offset);
-      if (offset > expectedOffset) {
-        markMissing(expectedOffset, offset - expectedOffset);
-      } else if (offset < expectedOffset) {
-        return;
-      }
-
       file.set(data.slice(0, boundedLength), offset);
       expectedOffset = offset + boundedLength;
       receivedBytes += boundedLength;
@@ -716,6 +727,7 @@ export class MavlinkFtpClient {
 
         try {
           let expectedIncomingSequence = (sequence + 1) & 0xffff;
+          let sawRequestedOffset = false;
           while (true) {
             const message = await this.waitForFtpMessage((ftpMessage) => {
               if (ftpMessage.requestOpcode !== FTP_OPCODE.BURST_READ_FILE) return false;
@@ -728,17 +740,59 @@ export class MavlinkFtpClient {
               this.ftpSeq = (message.sequence + 1) & 0xffff;
               const errorCode = message.data[0];
               if (errorCode === 6) {
-                burstEnded = true;
-                break;
+                if (expectedOffset >= expectedSize) {
+                  burstEnded = true;
+                  break;
+                }
+                throw new Error(`BurstReadFile 提前 EOF：已读取 ${expectedOffset} B，应为 ${expectedSize} B`);
               }
               throw new Error(formatFtpError(message));
             }
 
+            if (message.offset >= expectedSize) {
+              if (!sawRequestedOffset) {
+                continue;
+              }
+              this.ftpSeq = (message.sequence + 1) & 0xffff;
+              expectedIncomingSequence = (message.sequence + 1) & 0xffff;
+              continue;
+            }
+
+            if (message.offset < expectedOffset) {
+              this.ftpSeq = (message.sequence + 1) & 0xffff;
+              expectedIncomingSequence = (message.sequence + 1) & 0xffff;
+              continue;
+            }
+
+            if (message.offset > expectedOffset) {
+              if (!sawRequestedOffset) {
+                continue;
+              }
+              this.ftpSeq = (message.sequence + 1) & 0xffff;
+              expectedIncomingSequence = (message.sequence + 1) & 0xffff;
+              if (message.burstComplete) {
+                console.warn(`MAVLink FTP burst gap: expected offset ${expectedOffset}, got ${message.offset}; retry from missing offset`);
+                burstEnded = false;
+                break;
+              }
+              continue;
+            }
+
+            sawRequestedOffset = true;
             this.ftpSeq = (message.sequence + 1) & 0xffff;
             expectedIncomingSequence = (message.sequence + 1) & 0xffff;
             storeChunk(message.offset, message.data);
 
+            if (expectedOffset >= expectedSize) {
+              burstEnded = true;
+              break;
+            }
+
             if (message.burstComplete) {
+              if (expectedOffset >= expectedSize) {
+                burstEnded = true;
+                break;
+              }
               break;
             }
           }
@@ -753,67 +807,18 @@ export class MavlinkFtpClient {
       }
 
       if (burstEnded) {
-        expectedSize = expectedOffset;
-        break;
-      }
-      if (expectedOffset >= expectedSize) {
         break;
       }
     }
-
-    if (expectedOffset < expectedSize) {
-      markMissing(expectedOffset, expectedSize - expectedOffset);
-    }
-
-    if (missingRanges.length === 0) {
-      receivedBytes = expectedSize;
-      reportProgress();
-      return expectedSize < file.length ? file.slice(0, expectedSize).buffer : file.buffer;
-    }
-
-    await this.fillMissingRanges(session, file, missingRanges, {
-      chunkSize,
-      expectedSize,
-      onFilled: (filledBytes) => {
-        receivedBytes += filledBytes;
-        reportProgress(filledBytes);
-      },
-    });
 
     receivedBytes = expectedSize;
     reportProgress();
-    return expectedSize < file.length ? file.slice(0, expectedSize).buffer : file.buffer;
-  }
-
-  async fillMissingRanges(session, file, missingRanges, { chunkSize, expectedSize, onFilled }) {
-    let filledBytes = 0;
-    for (const range of missingRanges) {
-      let offset = range.offset;
-      const end = range.offset + range.length;
-      while (offset < end) {
-        const requestSize = Math.min(chunkSize, end - offset);
-        const { data, eof, offset: responseOffset } = await this.readFileChunk(session, offset, requestSize);
-        if (eof) {
-          console.warn(`补齐缺失数据时遇到 EOF：offset=${offset}`);
-          return filledBytes;
-        }
-        if (responseOffset !== offset) {
-          throw new Error(`补齐缺失数据 offset 不匹配：收到 ${responseOffset}，期望 ${offset}`);
-        }
-        if (data.length === 0) {
-          throw new Error(`补齐缺失数据返回空包：offset=${offset}`);
-        }
-        const boundedLength = Math.min(data.length, expectedSize - offset);
-        file.set(data.slice(0, boundedLength), offset);
-        offset += boundedLength;
-        filledBytes += boundedLength;
-        onFilled?.(boundedLength);
-      }
-    }
-    return filledBytes;
+    return file.buffer;
   }
 
   async readFile(path, { size = null, chunkSize = 239, onProgress = null } = {}) {
+    await this.resetSessions();
+    await this.settleFtpStream();
     const sessionInfo = await this.openFileReadOnly(path);
     const session = sessionInfo.session;
     const expectedSize = Number.isFinite(sessionInfo.size) ? sessionInfo.size : size;
@@ -822,6 +827,7 @@ export class MavlinkFtpClient {
       return await this.burstReadFile(session, expectedSize, { chunkSize, onProgress, path });
     } catch (error) {
       await this.resetSessions();
+      await this.settleFtpStream();
       throw error;
     } finally {
       try {
