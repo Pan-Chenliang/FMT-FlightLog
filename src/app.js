@@ -30,6 +30,7 @@ function renderMeta(result) {
     ["描述", result.description],
     ["模型信息", result.modelInfo],
     ["参数组", result.paramGroups.length],
+    ["解析警告", result.warnings.length ? result.warnings.join("；") : "-"],
     ["跳过字节", result.skippedBytes],
   ];
 

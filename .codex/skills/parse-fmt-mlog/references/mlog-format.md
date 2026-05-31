@@ -78,7 +78,7 @@ Parameter section follows bus definitions:
 | `7` | `DOUBLE` | 8 | `DataView.getFloat64(offset, true)` |
 | `8` | `BOOLEAN` | 1 | `DataView.getUint8(offset) !== 0` |
 
-Parameter types currently use IDs `0` through `7` with the same sizes as above.
+Parameter types currently use IDs `0` through `7` with the same sizes as above. Some custom logs may contain parameter type IDs outside this range or parameter sections that do not match the default layout. Do not fail the whole log for this. Stop parameter decoding, keep a warning, and start frame scanning from the parameter section start.
 
 ## Frame Layout
 

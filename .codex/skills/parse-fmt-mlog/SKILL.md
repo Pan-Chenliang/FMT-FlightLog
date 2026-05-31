@@ -19,6 +19,7 @@ description: Browser-side FMT MLog parsing and flight-log visualization guidance
 - Use little-endian reads for all integer and floating-point fields.
 - Decode fixed-size names as UTF-8 up to the first `0x00`, then trim trailing whitespace.
 - Use bus definitions from the file header to determine each frame payload length.
+- Treat parameter parsing as best-effort. If a parameter type is unknown or the parameter section looks misaligned, keep parsed bus definitions, record a warning, and scan for frames from the parameter section start.
 - Resynchronize by advancing one byte when a frame marker, message id, payload, or end marker does not match.
 - Compute `delta_ts` per message id from a scalar field named exactly `timestamp` when present.
 - Keep CSV export columns in the same order as bus elements, expanding vectors as `field[0]`, `field[1]`, then append `delta_ts`.

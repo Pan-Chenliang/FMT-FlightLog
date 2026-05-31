@@ -69,4 +69,39 @@ const series = collectChartSeries(result, 6);
 assert.equal(series.length, 2);
 assert.equal(series[0].field, "altitude");
 
+const bytesWithUnknownParamType = [
+  ...u16(2),
+  ...u32(123456),
+  ...u16(NAME_LEN),
+  ...u16(DESC_LEN),
+  ...u16(MODEL_LEN),
+  ...fixedString("test log", DESC_LEN),
+  ...fixedString("test model", MODEL_LEN),
+  1,
+  ...fixedString("INS_Out", NAME_LEN),
+  0,
+  3,
+  ...fixedString("timestamp", NAME_LEN),
+  ...u16(5),
+  ...u16(1),
+  ...fixedString("altitude", NAME_LEN),
+  ...u16(6),
+  ...u16(1),
+  ...fixedString("speed", NAME_LEN),
+  ...u16(6),
+  ...u16(1),
+  1,
+  ...fixedString("FMS", NAME_LEN),
+  1,
+  ...fixedString("CUSTOM_PARAM", NAME_LEN),
+  23,
+  ...frame(0, 2000, 21.5, 5.1),
+  ...frame(0, 2020, 22.0, 5.4),
+];
+
+const unknownParamResult = parseMlog(new Uint8Array(bytesWithUnknownParamType).buffer);
+assert.equal(unknownParamResult.totalFrames, 2);
+assert.equal(unknownParamResult.paramGroups[0].params[0].unsupported, true);
+assert.match(unknownParamResult.warnings[0], /未知类型 23/u);
+
 console.log("smoke test passed");

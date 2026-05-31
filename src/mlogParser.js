@@ -75,8 +75,71 @@ function payloadSize(bus) {
   }, 0);
 }
 
+function parseParamGroups(view, startOffset, nameLen, warnings) {
+  let offset = startOffset;
+  const paramGroups = [];
+
+  try {
+    let scalar = readUint8(view, offset, "参数组数量");
+    const numParamGroups = scalar.value;
+    offset = scalar.offset;
+
+    for (let i = 0; i < numParamGroups; i += 1) {
+      let result = readBytes(view, offset, nameLen, `参数组 ${i} 名称`);
+      const groupName = readFixedString(result.value);
+      offset = result.offset;
+
+      scalar = readUint8(view, offset, `参数组 ${groupName} 参数数量`);
+      const paramCount = scalar.value;
+      offset = scalar.offset;
+
+      const params = [];
+      for (let j = 0; j < paramCount; j += 1) {
+        result = readBytes(view, offset, nameLen, `参数 ${j} 名称`);
+        const paramName = readFixedString(result.value);
+        offset = result.offset;
+
+        scalar = readUint8(view, offset, `参数 ${paramName} 类型`);
+        const type = scalar.value;
+        offset = scalar.offset;
+
+        const typeInfo = PARAM_TYPE_INFO[type];
+        if (!typeInfo) {
+          warnings.push(`参数 ${paramName || "(空名称)"} 使用了未知类型 ${type}，已停止解析参数区并继续扫描日志帧`);
+          params.push({
+            name: paramName,
+            type,
+            typeName: `TYPE_${type}`,
+            value: null,
+            unsupported: true,
+          });
+          paramGroups.push({ name: groupName, params });
+          return { paramGroups, offset: startOffset, complete: false };
+        }
+
+        const typed = readTypedValue(view, offset, type, PARAM_TYPE_INFO, `参数 ${paramName} 值`);
+        offset = typed.offset;
+        params.push({
+          name: paramName,
+          type,
+          typeName: typeInfo.name,
+          value: typed.value,
+        });
+      }
+
+      paramGroups.push({ name: groupName, params });
+    }
+
+    return { paramGroups, offset, complete: true };
+  } catch (error) {
+    warnings.push(`参数区解析未完成：${error.message}。已保留 bus 定义并从参数区起点扫描日志帧`);
+    return { paramGroups, offset: startOffset, complete: false };
+  }
+}
+
 function parseHeader(view) {
   let offset = 0;
+  const warnings = [];
   ensureAvailable(view, offset, 12, "日志头");
 
   const version = view.getUint16(offset, true);
@@ -155,42 +218,8 @@ function parseHeader(view) {
     busById.set(id, bus);
   }
 
-  const paramGroups = [];
-  scalar = readUint8(view, offset, "参数组数量");
-  const numParamGroups = scalar.value;
-  offset = scalar.offset;
-
-  for (let i = 0; i < numParamGroups; i += 1) {
-    result = readBytes(view, offset, nameLen, `参数组 ${i} 名称`);
-    const groupName = readFixedString(result.value);
-    offset = result.offset;
-
-    scalar = readUint8(view, offset, `参数组 ${groupName} 参数数量`);
-    const paramCount = scalar.value;
-    offset = scalar.offset;
-
-    const params = [];
-    for (let j = 0; j < paramCount; j += 1) {
-      result = readBytes(view, offset, nameLen, `参数 ${j} 名称`);
-      const paramName = readFixedString(result.value);
-      offset = result.offset;
-
-      scalar = readUint8(view, offset, `参数 ${paramName} 类型`);
-      const type = scalar.value;
-      offset = scalar.offset;
-
-      const typed = readTypedValue(view, offset, type, PARAM_TYPE_INFO, `参数 ${paramName} 值`);
-      offset = typed.offset;
-      params.push({
-        name: paramName,
-        type,
-        typeName: PARAM_TYPE_INFO[type]?.name ?? `TYPE_${type}`,
-        value: typed.value,
-      });
-    }
-
-    paramGroups.push({ name: groupName, params });
-  }
+  const paramSectionOffset = offset;
+  const paramResult = parseParamGroups(view, paramSectionOffset, nameLen, warnings);
 
   return {
     version,
@@ -201,10 +230,11 @@ function parseHeader(view) {
     numBus,
     buses,
     busById,
-    paramGroups,
+    paramGroups: paramResult.paramGroups,
+    warnings,
     description,
     modelInfo,
-    offset,
+    offset: paramResult.offset,
   };
 }
 
