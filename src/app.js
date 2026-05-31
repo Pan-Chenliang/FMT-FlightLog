@@ -43,6 +43,8 @@ let selectedFiles = new Set();
 let isFlightTransferActive = false;
 let transferProgressFrame = null;
 let pendingTransferProgress = null;
+let isDisconnectingFlightController = false;
+let closeAfterParse = false;
 
 function updateSelectionButtons() {
   const n = selectedFiles.size;
@@ -146,6 +148,45 @@ function resetTransferProgress() {
   flightTransferStats.textContent = "0%";
   flightTransferProgress.max = 100;
   flightTransferProgress.value = 0;
+}
+
+async function disconnectFlightController({ updateMainStatus = true } = {}) {
+  if (isDisconnectingFlightController) {
+    return;
+  }
+
+  isDisconnectingFlightController = true;
+  try {
+    if (mavlinkFtpClient) {
+      console.log("app.js: disconnecting from flight controller");
+      const client = mavlinkFtpClient;
+      mavlinkFtpClient = null;
+      try {
+        await client.close();
+      } catch (error) {
+        console.warn(`断开飞控连接失败：${error.message}`);
+      }
+    }
+
+    if (refreshFlightLogList) refreshFlightLogList.disabled = true;
+    if (connectFlightController) {
+      connectFlightController.classList.remove("connected");
+      connectFlightController.textContent = "连接飞控";
+    }
+    if (flightControllerDialogStatus) {
+      flightControllerDialogStatus.textContent = "已断开连接。";
+    }
+    if (flightLogList) {
+      flightLogList.innerHTML = '<div class="empty-state">已断开连接。</div>';
+    }
+    selectedFiles.clear();
+    updateSelectionButtons();
+    if (updateMainStatus) {
+      setStatus("已断开连接");
+    }
+  } finally {
+    isDisconnectingFlightController = false;
+  }
 }
 
 function scheduleTransferProgress(label, loaded = 0, total = 0, speed = 0) {
@@ -633,6 +674,12 @@ closeFlightControllerDialog.addEventListener("click", () => {
   flightControllerDialog.close();
 });
 
+flightControllerDialog.addEventListener("close", () => {
+  const keepMainStatus = closeAfterParse;
+  closeAfterParse = false;
+  void disconnectFlightController({ updateMainStatus: !keepMainStatus });
+});
+
 connectFlightController.addEventListener("click", async () => {
   if (!selectedFlightControllerPort) {
     flightControllerDialogStatus.textContent = "请先选择飞控串口。";
@@ -642,15 +689,7 @@ connectFlightController.addEventListener("click", async () => {
   try {
     // If already connected, treat as a disconnect request
     if (mavlinkFtpClient) {
-      console.log("app.js: disconnecting from flight controller");
-      await mavlinkFtpClient.close();
-      mavlinkFtpClient = null;
-      refreshFlightLogList.disabled = true;
-      connectFlightController.classList.remove("connected");
-      connectFlightController.textContent = "连接飞控";
-      flightControllerDialogStatus.textContent = "已断开连接。";
-      flightLogList.innerHTML = '<div class="empty-state">已断开连接。</div>';
-      setStatus("已断开连接");
+      await disconnectFlightController();
       return;
     }
 
@@ -907,6 +946,8 @@ if (parseSelected) {
       setStatus(`正在从飞控读取 ${files[0].name}`);
       await downloadRemoteFiles(files, { parseAfterDownload: true });
       finishTransferProgress(`已读取并解析 ${files[0].name}`);
+      closeAfterParse = true;
+      flightControllerDialog.close();
     } catch (error) {
       showTransferProgress(`传输失败：${error.message}`);
       setStatus(`读取飞控日志失败：${error.message}`, "error");
