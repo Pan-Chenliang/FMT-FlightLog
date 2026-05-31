@@ -156,6 +156,13 @@
             <button id="downloadSelected" type="button" disabled>下载到本地</button>
           </div>
         </div>
+        <div class="fc-transfer" id="flightTransfer" hidden>
+          <div class="fc-transfer-row">
+            <span id="flightTransferLabel">等待传输</span>
+            <strong id="flightTransferStats">0%</strong>
+          </div>
+          <progress id="flightTransferProgress" value="0" max="100"></progress>
+        </div>
 
         <div class="fc-file-list" id="flightLogList">
           <div class="empty-state">选择串口后，先连接飞控；随后将通过 MAVLink FTP 列出日志文件。</div>

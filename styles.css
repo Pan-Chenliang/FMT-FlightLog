@@ -445,6 +445,48 @@ button.connected:hover {
   align-items: center;
 }
 
+.fc-transfer {
+  display: grid;
+  gap: 8px;
+  margin: -4px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.fc-transfer[hidden] {
+  display: none;
+}
+
+.fc-transfer-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fc-transfer-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-transfer-row strong {
+  color: var(--primary-dark);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fc-transfer progress {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--primary);
+}
+
 .flight-log-table .name-cell input[type="checkbox"] {
   margin-right: 8px;
 }

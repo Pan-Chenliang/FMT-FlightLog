@@ -11,6 +11,10 @@ const connectFlightController = document.querySelector("#connectFlightController
 const refreshFlightLogList = document.querySelector("#refreshFlightLogList");
 const parseSelected = document.querySelector("#parseSelected");
 const downloadSelected = document.querySelector("#downloadSelected");
+const flightTransfer = document.querySelector("#flightTransfer");
+const flightTransferLabel = document.querySelector("#flightTransferLabel");
+const flightTransferStats = document.querySelector("#flightTransferStats");
+const flightTransferProgress = document.querySelector("#flightTransferProgress");
 const baudRateSelect = document.querySelector("#baudRateSelect");
 const remoteLogPath = document.querySelector("#remoteLogPath");
 const flightLogList = document.querySelector("#flightLogList");
@@ -36,11 +40,14 @@ let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
 let mavlinkFtpClient = null;
 let selectedFiles = new Set();
+let isFlightTransferActive = false;
+let transferProgressFrame = null;
+let pendingTransferProgress = null;
 
 function updateSelectionButtons() {
   const n = selectedFiles.size;
-  if (parseSelected) parseSelected.disabled = n !== 1;
-  if (downloadSelected) downloadSelected.disabled = n === 0;
+  if (parseSelected) parseSelected.disabled = isFlightTransferActive || n !== 1;
+  if (downloadSelected) downloadSelected.disabled = isFlightTransferActive || n === 0;
 }
 
 function downloadBlobAsFile(name, arrayBuffer) {
@@ -50,7 +57,174 @@ function downloadBlobAsFile(name, arrayBuffer) {
   a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) {
+    return "-";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function formatSpeed(bytesPerSecond) {
+  if (!Number.isFinite(bytesPerSecond)) {
+    return "-";
+  }
+  if (bytesPerSecond < 1024) {
+    return `${bytesPerSecond.toFixed(1)} B`;
+  }
+  if (bytesPerSecond < 1024 * 1024) {
+    return `${(bytesPerSecond / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytesPerSecond / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function getRemoteFileName(path) {
+  const name = path.split("/").filter(Boolean).pop();
+  return name || "flight-log.bin";
+}
+
+function getSelectedRemoteFiles() {
+  const rows = Array.from(flightLogList.querySelectorAll('tr[data-type="F"]'));
+  return rows
+    .filter((row) => selectedFiles.has(row.dataset.path))
+    .map((row) => ({
+      path: row.dataset.path,
+      name: getRemoteFileName(row.dataset.path),
+      size: Number(row.dataset.size),
+    }));
+}
+
+function getKnownTotalSize(files) {
+  if (!files.every((file) => Number.isFinite(file.size) && file.size >= 0)) {
+    return null;
+  }
+  return files.reduce((sum, file) => sum + file.size, 0);
+}
+
+function showTransferProgress(label, loaded = 0, total = 0, speed = 0) {
+  if (!flightTransfer || !flightTransferLabel || !flightTransferStats || !flightTransferProgress) {
+    return;
+  }
+  flightTransfer.hidden = false;
+  flightTransferLabel.textContent = label;
+
+  if (Number.isFinite(total) && total > 0) {
+    const percent = Math.min(100, Math.round((loaded / total) * 100));
+    flightTransferProgress.max = 100;
+    flightTransferProgress.value = percent;
+    flightTransferStats.textContent = `${percent}% · ${formatBytes(loaded)} / ${formatBytes(total)} · ${formatSpeed(speed)}/s`;
+  } else {
+    flightTransferProgress.removeAttribute("value");
+    flightTransferStats.textContent = `${formatBytes(loaded)} · ${formatSpeed(speed)}/s`;
+  }
+}
+
+function scheduleTransferProgress(label, loaded = 0, total = 0, speed = 0) {
+  pendingTransferProgress = { label, loaded, total, speed };
+  if (transferProgressFrame !== null) {
+    return;
+  }
+  transferProgressFrame = requestAnimationFrame(() => {
+    transferProgressFrame = null;
+    const progress = pendingTransferProgress;
+    pendingTransferProgress = null;
+    if (progress) {
+      showTransferProgress(progress.label, progress.loaded, progress.total, progress.speed);
+    }
+  });
+}
+
+function finishTransferProgress(label) {
+  if (!flightTransfer || !flightTransferLabel || !flightTransferStats || !flightTransferProgress) {
+    return;
+  }
+  flightTransfer.hidden = false;
+  flightTransferLabel.textContent = label;
+  flightTransferProgress.max = 100;
+  flightTransferProgress.value = 100;
+  flightTransferStats.textContent = "100%";
+}
+
+async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownload = false } = {}) {
+  if (!mavlinkFtpClient) {
+    throw new Error("请先连接飞控。");
+  }
+  if (files.length === 0) {
+    throw new Error("请先选择日志文件。");
+  }
+
+  const totalBytes = getKnownTotalSize(files);
+  let completedBytes = 0;
+  let lastProgressAt = performance.now();
+  let lastProgressBytes = 0;
+  let smoothedSpeed = 0;
+  isFlightTransferActive = true;
+  if (refreshFlightLogList) refreshFlightLogList.disabled = true;
+  updateSelectionButtons();
+
+  try {
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const labelPrefix = files.length > 1 ? `(${index + 1}/${files.length}) ` : "";
+      const fileTotal = Number.isFinite(file.size) ? file.size : null;
+      scheduleTransferProgress(
+        `正在传输 ${labelPrefix}${file.name}`,
+        completedBytes,
+        totalBytes,
+        smoothedSpeed,
+      );
+      const buffer = await mavlinkFtpClient.readFile(file.path, {
+        size: fileTotal,
+        onProgress: ({ loaded, total }) => {
+          const aggregateLoaded = completedBytes + loaded;
+          const now = performance.now();
+          const elapsedSeconds = Math.max(0.001, (now - lastProgressAt) / 1000);
+          const deltaBytes = Math.max(0, aggregateLoaded - lastProgressBytes);
+          const instantSpeed = deltaBytes / elapsedSeconds;
+          smoothedSpeed = smoothedSpeed === 0 ? instantSpeed : smoothedSpeed * 0.7 + instantSpeed * 0.3;
+          lastProgressAt = now;
+          lastProgressBytes = aggregateLoaded;
+
+          let displayTotal = totalBytes;
+          if (!Number.isFinite(displayTotal) && files.length === 1 && Number.isFinite(total)) {
+            displayTotal = total;
+          }
+          scheduleTransferProgress(
+            `正在传输 ${labelPrefix}${file.name}`,
+            aggregateLoaded,
+            displayTotal,
+            smoothedSpeed,
+          );
+        },
+      });
+
+      completedBytes += buffer.byteLength;
+      lastProgressBytes = completedBytes;
+      if (saveToDisk) {
+        downloadBlobAsFile(file.name, buffer);
+      }
+      if (parseAfterDownload) {
+        await parseAndRender(buffer, file.name, {
+          name: file.name,
+          size: buffer.byteLength,
+          type: "application/octet-stream",
+          lastModified: Date.now(),
+        });
+      }
+    }
+  } finally {
+    isFlightTransferActive = false;
+    if (refreshFlightLogList) refreshFlightLogList.disabled = !mavlinkFtpClient;
+    updateSelectionButtons();
+  }
 }
 
 function toggleLanguage() {
@@ -581,6 +755,9 @@ refreshFlightLogList.addEventListener("click", async () => {
           if (parentId) tr.dataset.parent = parentId;
           tr.dataset.type = node.type;
           tr.dataset.path = node.path;
+          if (node.type === 'F' && Number.isFinite(node.size)) {
+            tr.dataset.size = String(node.size);
+          }
 
           const tdType = document.createElement('td');
           tdType.textContent = node.type === 'D' ? '目录' : '文件';
@@ -697,20 +874,35 @@ refreshFlightLogList.addEventListener("click", async () => {
 
 restoreCachedLog();
 
-// parse/download button handlers (readFile not implemented in client yet)
+// Flight-controller file transfer button handlers.
 if (parseSelected) {
-  parseSelected.addEventListener('click', () => {
-    if (selectedFiles.size !== 1) return;
-    const [path] = Array.from(selectedFiles);
-    setStatus('解析功能暂未实现（需读取飞控文件）', 'error');
-    console.info('parse requested for', path);
+  parseSelected.addEventListener('click', async () => {
+    if (selectedFiles.size !== 1 || isFlightTransferActive) return;
+    const files = getSelectedRemoteFiles();
+    if (files.length !== 1) return;
+    try {
+      setStatus(`正在从飞控读取 ${files[0].name}`);
+      await downloadRemoteFiles(files, { parseAfterDownload: true });
+      finishTransferProgress(`已读取并解析 ${files[0].name}`);
+    } catch (error) {
+      showTransferProgress(`传输失败：${error.message}`);
+      setStatus(`读取飞控日志失败：${error.message}`, "error");
+    }
   });
 }
 
 if (downloadSelected) {
-  downloadSelected.addEventListener('click', () => {
-    if (selectedFiles.size === 0) return;
-    setStatus('下载功能暂未实现（需读取飞控文件）', 'error');
-    console.info('download requested for', Array.from(selectedFiles));
+  downloadSelected.addEventListener('click', async () => {
+    if (selectedFiles.size === 0 || isFlightTransferActive) return;
+    const files = getSelectedRemoteFiles();
+    try {
+      setStatus(`正在下载 ${files.length} 个飞控日志文件`);
+      await downloadRemoteFiles(files, { saveToDisk: true });
+      finishTransferProgress(`已下载 ${files.length} 个文件`);
+      setStatus(`已下载 ${files.length} 个飞控日志文件`, "ok");
+    } catch (error) {
+      showTransferProgress(`传输失败：${error.message}`);
+      setStatus(`下载飞控日志失败：${error.message}`, "error");
+    }
   });
 }
