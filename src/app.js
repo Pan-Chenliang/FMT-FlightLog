@@ -4,6 +4,14 @@ import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
 const languageToggle = document.querySelector("#languageToggle");
 const mainTitle = document.querySelector("#mainTitle");
 const flightControllerImport = document.querySelector("#flightControllerImport");
+const flightControllerDialog = document.querySelector("#flightControllerDialog");
+const closeFlightControllerDialog = document.querySelector("#closeFlightControllerDialog");
+const connectFlightController = document.querySelector("#connectFlightController");
+const refreshFlightLogList = document.querySelector("#refreshFlightLogList");
+const baudRateSelect = document.querySelector("#baudRateSelect");
+const remoteLogPath = document.querySelector("#remoteLogPath");
+const flightLogList = document.querySelector("#flightLogList");
+const flightControllerDialogStatus = document.querySelector("#flightControllerDialogStatus");
 const fileInput = document.querySelector("#fileInput");
 const dropZone = document.querySelector("#dropZone");
 const statusText = document.querySelector("#statusText");
@@ -22,6 +30,7 @@ const titles = {
 };
 
 let currentLanguage = "zh";
+let selectedFlightControllerPort = null;
 
 function toggleLanguage() {
   currentLanguage = currentLanguage === "zh" ? "en" : "zh";
@@ -390,13 +399,43 @@ flightControllerImport.addEventListener("click", async () => {
   }
 
   try {
-    await navigator.serial.requestPort();
-    setStatus("已选择飞控串口，MAVLink FTP 下载功能待接入", "ok");
+    selectedFlightControllerPort = await navigator.serial.requestPort();
+    flightControllerDialogStatus.textContent = "串口已授权，等待连接。";
+    flightLogList.innerHTML = '<div class="empty-state">点击“连接飞控”后，将通过 MAVLink FTP 读取日志目录。</div>';
+    refreshFlightLogList.disabled = true;
+    flightControllerDialog.showModal();
+    setStatus("已选择飞控串口", "ok");
   } catch (error) {
     if (error.name !== "NotFoundError") {
       setStatus(`选择串口失败：${error.message}`, "error");
     }
   }
+});
+
+closeFlightControllerDialog.addEventListener("click", () => {
+  flightControllerDialog.close();
+});
+
+connectFlightController.addEventListener("click", async () => {
+  if (!selectedFlightControllerPort) {
+    flightControllerDialogStatus.textContent = "请先选择飞控串口。";
+    return;
+  }
+
+  try {
+    if (!selectedFlightControllerPort.readable || !selectedFlightControllerPort.writable) {
+      await selectedFlightControllerPort.open({ baudRate: Number(baudRateSelect.value) });
+    }
+    refreshFlightLogList.disabled = false;
+    flightControllerDialogStatus.textContent = `串口已连接，日志路径：${remoteLogPath.value}`;
+    flightLogList.innerHTML = '<div class="empty-state">MAVLink FTP 文件列表读取功能将在下一步接入。</div>';
+  } catch (error) {
+    flightControllerDialogStatus.textContent = `连接失败：${error.message}`;
+  }
+});
+
+refreshFlightLogList.addEventListener("click", () => {
+  flightControllerDialogStatus.textContent = "MAVLink FTP 目录读取功能待接入。";
 });
 
 restoreCachedLog();
