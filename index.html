@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FMT FlightLog</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="upload-panel">
+        <div>
+          <p class="eyebrow">FMT FlightLog</p>
+          <h1>浏览器端 MLog 解析工具</h1>
+          <p class="summary">上传 `.bin` / `.mlog` 文件后，页面会在本地浏览器内解析日志头、消息帧和数值字段，并自动绘制几张快速检查图。</p>
+        </div>
+
+        <label class="drop-zone" for="fileInput" id="dropZone">
+          <input id="fileInput" type="file" accept=".bin,.mlog,application/octet-stream" />
+          <span class="drop-title">选择或拖入 MLog 文件</span>
+          <span class="drop-hint">文件不会上传到服务器，所有计算都在当前浏览器完成。</span>
+        </label>
+      </section>
+
+      <section class="status-panel" id="statusPanel">
+        <div class="status-card">
+          <span class="status-label">状态</span>
+          <strong id="statusText">等待上传</strong>
+        </div>
+        <div class="status-card">
+          <span class="status-label">文件</span>
+          <strong id="fileName">-</strong>
+        </div>
+        <div class="status-card">
+          <span class="status-label">消息类型</span>
+          <strong id="busCount">-</strong>
+        </div>
+        <div class="status-card">
+          <span class="status-label">解析帧数</span>
+          <strong id="frameCount">-</strong>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>日志摘要</h2>
+          </div>
+          <dl class="meta-list" id="metaList">
+            <div><dt>版本</dt><dd>-</dd></div>
+            <div><dt>时间戳</dt><dd>-</dd></div>
+            <div><dt>描述</dt><dd>-</dd></div>
+            <div><dt>模型信息</dt><dd>-</dd></div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>消息表</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>名称</th>
+                  <th>字段</th>
+                  <th>Payload</th>
+                  <th>帧数</th>
+                </tr>
+              </thead>
+              <tbody id="busTable">
+                <tr><td colspan="5">等待上传文件</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>快速图表</h2>
+          <div class="actions" id="downloadActions"></div>
+        </div>
+        <div class="chart-grid" id="chartGrid">
+          <div class="empty-state">解析成功后会自动显示最多 6 张数值曲线。</div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
