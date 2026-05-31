@@ -132,6 +132,22 @@ function showTransferProgress(label, loaded = 0, total = 0, speed = 0) {
   }
 }
 
+function resetTransferProgress() {
+  if (!flightTransfer || !flightTransferLabel || !flightTransferStats || !flightTransferProgress) {
+    return;
+  }
+  if (transferProgressFrame !== null) {
+    cancelAnimationFrame(transferProgressFrame);
+    transferProgressFrame = null;
+  }
+  pendingTransferProgress = null;
+  flightTransfer.hidden = true;
+  flightTransferLabel.textContent = "等待传输";
+  flightTransferStats.textContent = "0%";
+  flightTransferProgress.max = 100;
+  flightTransferProgress.value = 0;
+}
+
 function scheduleTransferProgress(label, loaded = 0, total = 0, speed = 0) {
   pendingTransferProgress = { label, loaded, total, speed };
   if (transferProgressFrame !== null) {
@@ -600,6 +616,7 @@ flightControllerImport.addEventListener("click", async () => {
 
   try {
     selectedFlightControllerPort = await navigator.serial.requestPort();
+    resetTransferProgress();
     flightControllerDialogStatus.textContent = "串口已授权，等待连接。";
     flightLogList.innerHTML = '<div class="empty-state">点击“连接飞控”后，将通过 MAVLink FTP 读取日志目录。</div>';
     refreshFlightLogList.disabled = true;
@@ -647,6 +664,7 @@ connectFlightController.addEventListener("click", async () => {
     connectFlightController.textContent = "断开连接";
     flightControllerDialogStatus.textContent = `串口已连接，日志路径：${remoteLogPath.value}`;
     flightLogList.innerHTML = '<div class="empty-state">点击“刷新文件列表”读取飞控日志目录。</div>';
+    setStatus("飞控已连接", "ok");
   } catch (error) {
     flightControllerDialogStatus.textContent = `连接失败：${error.message}`;
   }

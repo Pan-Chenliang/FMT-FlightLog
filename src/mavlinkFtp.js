@@ -127,18 +127,33 @@ export class MavlinkFtpClient {
   async close() {
     try {
       // Stop reader
-      if (this.reader) {
+      const reader = this.reader;
+      if (reader) {
         try {
-          await this.reader.cancel();
+          await reader.cancel();
         } catch (e) {
           console.warn("MavlinkFtpClient: reader.cancel failed", e);
         }
+
+        if (this.readLoopPromise) {
+          try {
+            await Promise.race([
+              this.readLoopPromise,
+              new Promise((resolve) => setTimeout(resolve, 300)),
+            ]);
+          } catch (_) {
+            // readLoop cancellation is expected while closing.
+          }
+        }
+
         try {
-          this.reader.releaseLock();
+          reader.releaseLock();
         } catch (e) {
           // ignore
         }
-        this.reader = null;
+        if (this.reader === reader) {
+          this.reader = null;
+        }
       }
 
       // Close writer
@@ -200,7 +215,7 @@ export class MavlinkFtpClient {
     }
 
     // Start read loop in background; don't await it here to avoid blocking callers
-    this.readLoopPromise = this.readLoop().catch(() => {});
+    this.readLoopPromise = this.readLoop(this.reader).catch(() => {});
 
     // Wait for heartbeat to confirm remote system is alive
     try {
@@ -227,11 +242,11 @@ export class MavlinkFtpClient {
     });
   }
 
-  async readLoop() {
+  async readLoop(reader) {
     try {
       if (this.verbose) console.log("MavlinkFtpClient: readLoop started");
       while (true) {
-        const { value, done } = await this.reader.read();
+        const { value, done } = await reader.read();
         if (done) {
           if (this.verbose) console.log("MavlinkFtpClient: reader done");
           break;
