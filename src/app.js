@@ -1,6 +1,8 @@
 import { clearLastLog, loadLastLog, saveLastLog } from "./logCache.js";
 import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
 
+const languageToggle = document.querySelector("#languageToggle");
+const mainTitle = document.querySelector("#mainTitle");
 const fileInput = document.querySelector("#fileInput");
 const dropZone = document.querySelector("#dropZone");
 const statusText = document.querySelector("#statusText");
@@ -12,6 +14,19 @@ const busTable = document.querySelector("#busTable");
 const paramTable = document.querySelector("#paramTable");
 const chartGrid = document.querySelector("#chartGrid");
 const downloadActions = document.querySelector("#downloadActions");
+
+const titles = {
+  zh: "FMT MLog 日志在线解析工具",
+  en: "FMT MLog Online Log Parser",
+};
+
+let currentLanguage = "zh";
+
+function toggleLanguage() {
+  currentLanguage = currentLanguage === "zh" ? "en" : "zh";
+  mainTitle.textContent = titles[currentLanguage];
+  languageToggle.textContent = currentLanguage === "zh" ? "EN" : "中文";
+}
 
 function setStatus(text, kind = "") {
   statusText.textContent = text;
@@ -364,5 +379,7 @@ dropZone.addEventListener("drop", (event) => {
     handleFile(file);
   }
 });
+
+languageToggle.addEventListener("click", toggleLanguage);
 
 restoreCachedLog();

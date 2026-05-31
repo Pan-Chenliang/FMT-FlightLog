@@ -25,10 +25,27 @@ body {
     sans-serif;
 }
 
+.language-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--primary-dark);
+  box-shadow: 0 6px 18px rgba(35, 50, 80, 0.12);
+  padding: 7px 10px;
+}
+
+.language-toggle:hover {
+  background: #f3f7ff;
+}
+
 .app-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 28px 0 40px;
+  padding: 42px 0 40px;
 }
 
 .upload-panel {
