@@ -21,11 +21,18 @@
           </nav>
         </div>
 
-        <label class="drop-zone" for="fileInput" id="dropZone">
-          <input id="fileInput" type="file" />
-          <span class="drop-title">选择或拖入MLog日志文件</span>
-          <span class="drop-hint">文件不会上传服务器，所有解析都在当前浏览器完成<br />支持任意符合mlog格式的后缀。</span>
-        </label>
+        <div class="file-source-grid">
+          <button class="import-zone" id="flightControllerImport" type="button">
+            <span class="drop-title">从飞控导入日志文件</span>
+            <span class="drop-hint">通过浏览器选择飞控串口<br />后续直接下载并解析日志。</span>
+          </button>
+
+          <label class="drop-zone" for="fileInput" id="dropZone">
+            <input id="fileInput" type="file" />
+            <span class="drop-title">选择或拖入本地文件</span>
+            <span class="drop-hint">文件不会上传服务器，所有解析都在当前浏览器完成<br />支持任意符合mlog格式的后缀。</span>
+          </label>
+        </div>
       </section>
 
       <section class="status-panel" id="statusPanel">

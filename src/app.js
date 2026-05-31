@@ -3,6 +3,7 @@ import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
 
 const languageToggle = document.querySelector("#languageToggle");
 const mainTitle = document.querySelector("#mainTitle");
+const flightControllerImport = document.querySelector("#flightControllerImport");
 const fileInput = document.querySelector("#fileInput");
 const dropZone = document.querySelector("#dropZone");
 const statusText = document.querySelector("#statusText");
@@ -381,5 +382,21 @@ dropZone.addEventListener("drop", (event) => {
 });
 
 languageToggle.addEventListener("click", toggleLanguage);
+
+flightControllerImport.addEventListener("click", async () => {
+  if (!("serial" in navigator)) {
+    setStatus("当前浏览器不支持 Web Serial，请使用桌面版 Chrome 或 Edge", "error");
+    return;
+  }
+
+  try {
+    await navigator.serial.requestPort();
+    setStatus("已选择飞控串口，MAVLink FTP 下载功能待接入", "ok");
+  } catch (error) {
+    if (error.name !== "NotFoundError") {
+      setStatus(`选择串口失败：${error.message}`, "error");
+    }
+  }
+});
 
 restoreCachedLog();
