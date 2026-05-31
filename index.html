@@ -11,14 +11,19 @@
       <section class="upload-panel">
         <div>
           <p class="eyebrow">FMT FlightLog</p>
-          <h1>浏览器端 MLog 解析工具</h1>
-          <p class="summary">上传 `.bin` / `.mlog` 文件后，页面会在本地浏览器内解析 LogHeader、飞控参数、消息帧和数值字段，并自动绘制几张快速检查图。</p>
+          <h1>FMT飞控MLog日志在线解析工具</h1>
+          <p class="summary">上传mlog日志文件，页面会在本地浏览器内解析消息帧、绘制曲线并提供下载。</p>
+          <nav class="resource-links" aria-label="FMT resources">
+            <a href="https://docs.sieon.net/fmt/#/" target="_blank" rel="noreferrer">FMT User Guide</a>
+            <a href="https://github.com/Firmament-Autopilot/FMT-Firmware" target="_blank" rel="noreferrer">FMT-Firmware</a>
+            <a href="https://github.com/Firmament-Autopilot/FMT-Model" target="_blank" rel="noreferrer">FMT-Model</a>
+          </nav>
         </div>
 
         <label class="drop-zone" for="fileInput" id="dropZone">
-          <input id="fileInput" type="file" accept=".bin,.mlog,application/octet-stream" />
-          <span class="drop-title">选择或拖入 MLog 文件</span>
-          <span class="drop-hint">文件不会上传到服务器，所有计算都在当前浏览器完成。</span>
+          <input id="fileInput" type="file" />
+          <span class="drop-title">选择或拖入MLog日志文件</span>
+          <span class="drop-hint">文件不会上传服务器，所有解析都在当前浏览器完成，支持任意符合MLog格式的后缀。</span>
         </label>
       </section>
 
