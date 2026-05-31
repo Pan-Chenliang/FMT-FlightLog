@@ -92,7 +92,7 @@ const bytesWithUnknownParamType = [
   ...u16(1),
   1,
   ...fixedString("FMS", NAME_LEN),
-  1,
+  ...u32(1),
   ...fixedString("CUSTOM_PARAM", NAME_LEN),
   23,
   ...frame(0, 2000, 21.5, 5.1),

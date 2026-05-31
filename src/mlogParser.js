@@ -52,6 +52,11 @@ function readUint8(view, offset, label) {
   return { value: view.getUint8(offset), offset: offset + 1 };
 }
 
+function readUint32(view, offset, label) {
+  ensureAvailable(view, offset, 4, label);
+  return { value: view.getUint32(offset, true), offset: offset + 4 };
+}
+
 function readTypedValue(view, offset, type, map, label) {
   const info = map[type];
   if (!info) {
@@ -89,7 +94,7 @@ function parseParamGroups(view, startOffset, nameLen, warnings) {
       const groupName = readFixedString(result.value);
       offset = result.offset;
 
-      scalar = readUint8(view, offset, `参数组 ${groupName} 参数数量`);
+      scalar = readUint32(view, offset, `参数组 ${groupName} 参数数量`);
       const paramCount = scalar.value;
       offset = scalar.offset;
 

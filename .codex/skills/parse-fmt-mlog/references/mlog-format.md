@@ -9,6 +9,8 @@ Source in firmware:
 - `D:\AEROlab\Project\FMT\FMT-Firmware\src\module\log\mlog.h`
 - Python parser reference:
   `D:\AEROlab\Project\FMT\FMT-Firmware\utils\python_mlog_parser\parse_mlog.py`
+- MATLAB parser reference:
+  `D:\AEROlab\Project\FMT\FMT-Model\utils\log_parser\functions\mlog_parser.m`
 
 Known constants:
 
@@ -59,7 +61,7 @@ Parameter section follows bus definitions:
 | --- | --- | --- |
 | `num_param_group` | `uint8` | Number of parameter groups. |
 | `group.name` | `char[max_name_len]` | Repeated per group. |
-| `group.param_num` | `uint8` | Repeated per group. |
+| `group.param_num` | `uint32` | Repeated per group. MATLAB parser and `param_group_t` define this as 4 bytes. |
 | `param.name` | `char[max_name_len]` | Repeated per parameter. |
 | `param.type` | `uint8` | See parameter types. |
 | `param.value` | typed | Size and reader depend on `param.type`. |

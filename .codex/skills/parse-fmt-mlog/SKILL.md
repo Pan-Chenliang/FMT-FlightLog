@@ -9,9 +9,10 @@ description: Browser-side FMT MLog parsing and flight-log visualization guidance
 
 1. Read `references/mlog-format.md` before changing parser behavior.
 2. Treat `D:\AEROlab\Project\FMT\FMT-Firmware\utils\python_mlog_parser\parse_mlog.py` as the behavior reference when available.
-3. Keep all user log processing in the browser. Do not add a backend unless the user explicitly changes the deployment target.
-4. Preserve GitHub Pages compatibility: static files should work from the repository root without a build step unless the project is intentionally migrated to a build tool.
-5. After parser changes, run `npm.cmd test` from the repository root.
+3. Cross-check header and parameter layout with `D:\AEROlab\Project\FMT\FMT-Model\utils\log_parser\functions\mlog_parser.m`; it correctly reads `param_group.num_param` as `uint32`.
+4. Keep all user log processing in the browser. Do not add a backend unless the user explicitly changes the deployment target.
+5. Preserve GitHub Pages compatibility: static files should work from the repository root without a build step unless the project is intentionally migrated to a build tool.
+6. After parser changes, run `npm.cmd test` from the repository root.
 
 ## Implementation Rules
 

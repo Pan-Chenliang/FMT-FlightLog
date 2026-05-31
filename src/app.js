@@ -9,6 +9,7 @@ const busCount = document.querySelector("#busCount");
 const frameCount = document.querySelector("#frameCount");
 const metaList = document.querySelector("#metaList");
 const busTable = document.querySelector("#busTable");
+const paramTable = document.querySelector("#paramTable");
 const chartGrid = document.querySelector("#chartGrid");
 const downloadActions = document.querySelector("#downloadActions");
 
@@ -66,6 +67,30 @@ function renderBusTable(result) {
         </tr>
       `,
     )
+    .join("");
+}
+
+function renderParamTable(result) {
+  if (result.paramGroups.length === 0) {
+    paramTable.innerHTML = '<tr><td colspan="3">未找到参数组</td></tr>';
+    return;
+  }
+
+  paramTable.innerHTML = result.paramGroups
+    .map((group) => {
+      const examples = group.params
+        .slice(0, 5)
+        .map((param) => `${param.name || "(空名称)"}=${formatValue(param.value)} (${param.typeName})`)
+        .join("，");
+
+      return `
+        <tr>
+          <td>${escapeHtml(group.name || "-")}</td>
+          <td>${group.params.length}</td>
+          <td>${escapeHtml(examples || "-")}</td>
+        </tr>
+      `;
+    })
     .join("");
 }
 
@@ -281,6 +306,7 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
 
     renderMeta(result);
     renderBusTable(result);
+    renderParamTable(result);
     renderCharts(result);
     renderDownloads(result);
   } catch (error) {
