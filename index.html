@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FMT FlightLog</title>
-    <link rel="stylesheet" href="./styles.css?v=20260531-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260531-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -135,15 +135,16 @@
           <label>
             <span>波特率</span>
             <select id="baudRateSelect">
+              <option value="19200">19200</option>
+              <option value="38400">38400</option>
               <option value="57600">57600</option>
               <option value="115200" selected>115200</option>
-              <option value="460800">460800</option>
-              <option value="921600">921600</option>
+              <option value="230400">230400</option>
             </select>
           </label>
           <label>
             <span>日志路径</span>
-            <input id="remoteLogPath" type="text" value="@MAV_LOG" />
+            <input id="remoteLogPath" type="text" value="/log/" />
           </label>
         </div>
 
@@ -160,6 +161,6 @@
       </form>
     </dialog>
 
-    <script type="module" src="./src/app.js?v=20260531-1"></script>
+    <script type="module" src="./src/app.js?v=20260531-2"></script>
   </body>
 </html>

@@ -150,3 +150,23 @@ For the minimal viewer:
 3. Consider numeric fields except `timestamp` and `delta_ts`.
 4. Skip fields that never change.
 5. Draw the first several valid series as quick-look charts.
+
+## MAVLink FTP Import
+
+The browser import path uses Web Serial and MAVLink `FILE_TRANSFER_PROTOCOL` message id `110`, CRC extra `84`.
+
+FTP payload format:
+
+| Offset | Field |
+| --- | --- |
+| `0..1` | `seq_number` uint16 little-endian |
+| `2` | `session` |
+| `3` | `opcode` |
+| `4` | `size` |
+| `5` | `req_opcode` |
+| `6` | `burst_complete` |
+| `7` | padding |
+| `8..11` | `offset` uint32 little-endian |
+| `12..250` | data |
+
+For `ListDirectory` opcode `3`, send the directory path in data, set `size` to the path byte length, and set `offset` to the first entry index. ACK responses contain null-separated entries like `Fname\tbytes\0` or `Dname\t0\0`. NAK error `6` means end of directory.

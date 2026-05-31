@@ -28,6 +28,7 @@ description: Browser-side FMT MLog parsing and flight-log visualization guidance
 ## Current Project Files
 
 - `src/mlogParser.js`: parser, CSV export, and chart-series selection.
+- `src/mavlinkFtp.js`: browser-side Web Serial MAVLink v1/v2 frame handling and MAVLink FTP directory operations.
 - `src/app.js`: file upload, rendering, downloads, and canvas charts.
 - `src/logCache.js`: IndexedDB cache for the most recent uploaded log; keep logs local to the browser.
 - `test/smoke.test.js`: minimal synthetic MLog sample used as a regression test.

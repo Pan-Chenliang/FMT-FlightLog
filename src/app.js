@@ -1,4 +1,5 @@
 import { clearLastLog, loadLastLog, saveLastLog } from "./logCache.js";
+import { MavlinkFtpClient } from "./mavlinkFtp.js";
 import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
 
 const languageToggle = document.querySelector("#languageToggle");
@@ -31,6 +32,7 @@ const titles = {
 
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
+let mavlinkFtpClient = null;
 
 function toggleLanguage() {
   currentLanguage = currentLanguage === "zh" ? "en" : "zh";
@@ -426,16 +428,63 @@ connectFlightController.addEventListener("click", async () => {
     if (!selectedFlightControllerPort.readable || !selectedFlightControllerPort.writable) {
       await selectedFlightControllerPort.open({ baudRate: Number(baudRateSelect.value) });
     }
+    mavlinkFtpClient = new MavlinkFtpClient(selectedFlightControllerPort);
+    await mavlinkFtpClient.open(Number(baudRateSelect.value));
     refreshFlightLogList.disabled = false;
     flightControllerDialogStatus.textContent = `串口已连接，日志路径：${remoteLogPath.value}`;
-    flightLogList.innerHTML = '<div class="empty-state">MAVLink FTP 文件列表读取功能将在下一步接入。</div>';
+    flightLogList.innerHTML = '<div class="empty-state">点击“刷新文件列表”读取飞控日志目录。</div>';
   } catch (error) {
     flightControllerDialogStatus.textContent = `连接失败：${error.message}`;
   }
 });
 
-refreshFlightLogList.addEventListener("click", () => {
-  flightControllerDialogStatus.textContent = "MAVLink FTP 目录读取功能待接入。";
+refreshFlightLogList.addEventListener("click", async () => {
+  if (!mavlinkFtpClient) {
+    flightControllerDialogStatus.textContent = "请先连接飞控。";
+    return;
+  }
+
+  refreshFlightLogList.disabled = true;
+  flightControllerDialogStatus.textContent = `正在读取目录：${remoteLogPath.value}`;
+  flightLogList.innerHTML = '<div class="empty-state">正在读取文件列表...</div>';
+
+  try {
+    const entries = await mavlinkFtpClient.listDirectory(remoteLogPath.value.trim() || "/log/");
+    if (entries.length === 0) {
+      flightLogList.innerHTML = '<div class="empty-state">该目录没有返回文件。</div>';
+    } else {
+      flightLogList.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>类型</th>
+              <th>名称</th>
+              <th>大小</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${entries
+              .map(
+                (entry) => `
+                  <tr>
+                    <td>${entry.type === "D" ? "目录" : "文件"}</td>
+                    <td>${escapeHtml(entry.name)}</td>
+                    <td>${Number.isFinite(entry.size) ? entry.size : "-"}</td>
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `;
+    }
+    flightControllerDialogStatus.textContent = `已读取 ${entries.length} 个条目。`;
+  } catch (error) {
+    flightLogList.innerHTML = `<div class="empty-state">读取失败：${escapeHtml(error.message)}</div>`;
+    flightControllerDialogStatus.textContent = `读取目录失败：${error.message}`;
+  } finally {
+    refreshFlightLogList.disabled = false;
+  }
 });
 
 restoreCachedLog();
