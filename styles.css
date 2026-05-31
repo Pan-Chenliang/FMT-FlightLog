@@ -33,7 +33,7 @@ body {
 
 .upload-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(520px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
   gap: 24px;
   align-items: stretch;
   padding: 28px;
@@ -48,7 +48,7 @@ button.header-language-button {
   justify-content: center;
   min-width: 48px;
   height: 28px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   border: 1px solid #b9cceb;
   border-radius: 4px;
   background: #fff;
@@ -67,7 +67,7 @@ button.header-language-button:hover {
 }
 
 .eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   color: var(--primary);
   font-size: 13px;
   font-weight: 700;
@@ -123,6 +123,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  padding-top: 12px;
 }
 
 .drop-zone,
