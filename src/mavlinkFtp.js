@@ -73,6 +73,25 @@ function isSequenceAtOrAfter(sequence, expected) {
   return ((sequence - expected) & 0xffff) < 0x8000;
 }
 
+function makeAbortError() {
+  if (typeof DOMException === "function") {
+    return new DOMException("传输已取消", "AbortError");
+  }
+  const error = new Error("传输已取消");
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw signal.reason ?? makeAbortError();
+  }
+}
+
 function parseDirectoryEntries(bytes) {
   const decoder = new TextDecoder();
   const entries = [];
@@ -491,8 +510,13 @@ export class MavlinkFtpClient {
     await this.writer.write(frame);
   }
 
-  waitForResponse(sequence, requestOpcode, timeoutMs = 3000) {
+  waitForResponse(sequence, requestOpcode, timeoutMs = 3000, signal = null) {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason ?? makeAbortError());
+        return;
+      }
+
       const nextSequence = (sequence + 1) & 0xffff;
 
       const isMatch = (message) => {
@@ -508,38 +532,83 @@ export class MavlinkFtpClient {
         return resolve(msg);
       }
 
+      let abortHandler = null;
+      const cleanup = () => {
+        clearTimeout(waiter.timer);
+        if (signal && abortHandler) {
+          signal.removeEventListener("abort", abortHandler);
+        }
+      };
       const waiter = {
         matches: isMatch,
-        resolve,
-        reject,
+        resolve: (message) => {
+          cleanup();
+          resolve(message);
+        },
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
         timer: setTimeout(() => {
           this.waiters = this.waiters.filter((item) => item !== waiter);
           console.warn(`MavlinkFtpClient.waitForResponse: timeout seq=${sequence}/${nextSequence} reqOp=${requestOpcode}`);
-          reject(new Error("等待 MAVLink FTP 响应超时"));
+          waiter.reject(new Error("等待 MAVLink FTP 响应超时"));
         }, timeoutMs),
       };
+      abortHandler = () => {
+        this.waiters = this.waiters.filter((item) => item !== waiter);
+        waiter.reject(signal.reason ?? makeAbortError());
+      };
+      if (signal) {
+        signal.addEventListener("abort", abortHandler, { once: true });
+      }
       if (this.verbose) console.log(`MavlinkFtpClient.waitForResponse: waiting seq=${sequence}/${nextSequence} reqOp=${requestOpcode}`);
       this.waiters.push(waiter);
     });
   }
 
-  waitForFtpMessage(matches, timeoutMs = 3000) {
+  waitForFtpMessage(matches, timeoutMs = 3000, signal = null) {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason ?? makeAbortError());
+        return;
+      }
+
       const qIndex = this._messageQueue.findIndex(matches);
       if (qIndex >= 0) {
         const msg = this._messageQueue.splice(qIndex, 1)[0];
         return resolve(msg);
       }
 
+      let abortHandler = null;
+      const cleanup = () => {
+        clearTimeout(waiter.timer);
+        if (signal && abortHandler) {
+          signal.removeEventListener("abort", abortHandler);
+        }
+      };
       const waiter = {
         matches,
-        resolve,
-        reject,
+        resolve: (message) => {
+          cleanup();
+          resolve(message);
+        },
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
         timer: setTimeout(() => {
           this.waiters = this.waiters.filter((item) => item !== waiter);
-          reject(new Error("等待 MAVLink FTP 响应超时"));
+          waiter.reject(new Error("等待 MAVLink FTP 响应超时"));
         }, timeoutMs),
       };
+      abortHandler = () => {
+        this.waiters = this.waiters.filter((item) => item !== waiter);
+        waiter.reject(signal.reason ?? makeAbortError());
+      };
+      if (signal) {
+        signal.addEventListener("abort", abortHandler, { once: true });
+      }
       this.waiters.push(waiter);
     });
   }
@@ -557,16 +626,20 @@ export class MavlinkFtpClient {
     });
   }
 
-  async request(command, retries = 3) {
+  async request(command, retries = 3, signal = null) {
     for (let attempt = 0; attempt <= retries; attempt += 1) {
+      throwIfAborted(signal);
       if (this.verbose) console.log(`MavlinkFtpClient.request: attempt ${attempt} seq=${command.sequence} opcode=${command.opcode}`);
-      const responsePromise = this.waitForResponse(command.sequence, command.opcode);
+      const responsePromise = this.waitForResponse(command.sequence, command.opcode, 3000, signal);
       await this.sendFtpCommand(command);
       try {
         const response = await responsePromise;
         this.ftpSeq = (response.sequence + 1) & 0xffff;
         return response;
       } catch (error) {
+        if (isAbortError(error)) {
+          throw error;
+        }
         console.warn(`MavlinkFtpClient.request: attempt ${attempt} failed: ${error.message}`);
         if (attempt === retries) {
           throw error;
@@ -619,7 +692,7 @@ export class MavlinkFtpClient {
     }
   }
 
-  async openFileReadOnly(path) {
+  async openFileReadOnly(path, { signal = null } = {}) {
     const encoder = new TextEncoder();
     const pathBytes = encoder.encode(path);
     const sequence = this.nextFtpSequence();
@@ -629,7 +702,7 @@ export class MavlinkFtpClient {
       size: pathBytes.length,
       offset: 0,
       data: pathBytes,
-    });
+    }, 3, signal);
 
     if (response.opcode === FTP_OPCODE.NAK) {
       throw new Error(formatFtpError(response));
@@ -671,7 +744,7 @@ export class MavlinkFtpClient {
     }
   }
 
-  async readFileChunk(session, offset, size) {
+  async readFileChunk(session, offset, size, { signal = null } = {}) {
     const sequence = this.nextFtpSequence();
     const response = await this.request({
       sequence,
@@ -680,7 +753,7 @@ export class MavlinkFtpClient {
       size,
       offset,
       data: new Uint8Array(0),
-    });
+    }, 3, signal);
 
     if (response.opcode === FTP_OPCODE.NAK) {
       const errorCode = response.data[0];
@@ -696,7 +769,8 @@ export class MavlinkFtpClient {
     return { data: response.data, eof: false, offset: response.offset };
   }
 
-  async burstReadFile(session, expectedSize, { chunkSize = 239, onProgress = null, path = "" } = {}) {
+  async burstReadFile(session, expectedSize, { chunkSize = 239, onProgress = null, path = "", signal = null } = {}) {
+    throwIfAborted(signal);
     if (!Number.isFinite(expectedSize) || expectedSize < 0) {
       throw new Error("飞控未返回有效文件大小，无法可靠下载。");
     }
@@ -726,10 +800,12 @@ export class MavlinkFtpClient {
     };
 
     while (true) {
+      throwIfAborted(signal);
       let retryCount = 0;
       let burstEnded = false;
 
       while (true) {
+        throwIfAborted(signal);
         const sequence = this.nextFtpSequence();
         await this.sendFtpCommand({
           sequence,
@@ -744,12 +820,13 @@ export class MavlinkFtpClient {
           let expectedIncomingSequence = (sequence + 1) & 0xffff;
           let sawRequestedOffset = false;
           while (true) {
+            throwIfAborted(signal);
             const message = await this.waitForFtpMessage((ftpMessage) => {
               if (ftpMessage.requestOpcode !== FTP_OPCODE.BURST_READ_FILE) return false;
               if (ftpMessage.session !== session) return false;
               if (ftpMessage.opcode !== FTP_OPCODE.ACK && ftpMessage.opcode !== FTP_OPCODE.NAK) return false;
               return ftpMessage.opcode === FTP_OPCODE.NAK || isSequenceAtOrAfter(ftpMessage.sequence, expectedIncomingSequence);
-            });
+            }, 3000, signal);
 
             if (message.opcode === FTP_OPCODE.NAK) {
               this.ftpSeq = (message.sequence + 1) & 0xffff;
@@ -813,6 +890,9 @@ export class MavlinkFtpClient {
           }
           break;
         } catch (error) {
+          if (isAbortError(error)) {
+            throw error;
+          }
           retryCount += 1;
           if (retryCount > 3) {
             throw error;
@@ -831,15 +911,17 @@ export class MavlinkFtpClient {
     return file.buffer;
   }
 
-  async readFile(path, { size = null, chunkSize = 239, onProgress = null } = {}) {
+  async readFile(path, { size = null, chunkSize = 239, onProgress = null, signal = null } = {}) {
+    throwIfAborted(signal);
     await this.resetSessions();
     await this.settleFtpStream();
-    const sessionInfo = await this.openFileReadOnly(path);
+    throwIfAborted(signal);
+    const sessionInfo = await this.openFileReadOnly(path, { signal });
     const session = sessionInfo.session;
     const expectedSize = Number.isFinite(sessionInfo.size) ? sessionInfo.size : size;
 
     try {
-      return await this.burstReadFile(session, expectedSize, { chunkSize, onProgress, path });
+      return await this.burstReadFile(session, expectedSize, { chunkSize, onProgress, path, signal });
     } catch (error) {
       await this.resetSessions();
       await this.settleFtpStream();

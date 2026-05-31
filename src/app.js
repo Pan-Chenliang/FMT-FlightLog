@@ -15,6 +15,7 @@ const flightTransfer = document.querySelector("#flightTransfer");
 const flightTransferLabel = document.querySelector("#flightTransferLabel");
 const flightTransferStats = document.querySelector("#flightTransferStats");
 const flightTransferProgress = document.querySelector("#flightTransferProgress");
+const flightSessionHint = document.querySelector("#flightSessionHint");
 const baudRateSelect = document.querySelector("#baudRateSelect");
 const remoteLogPath = document.querySelector("#remoteLogPath");
 const flightLogList = document.querySelector("#flightLogList");
@@ -45,11 +46,29 @@ let transferProgressFrame = null;
 let pendingTransferProgress = null;
 let isDisconnectingFlightController = false;
 let closeAfterParse = false;
+let transferAbortController = null;
+
+function makeAbortError() {
+  if (typeof DOMException === "function") {
+    return new DOMException("传输已取消", "AbortError");
+  }
+  const error = new Error("传输已取消");
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
 
 function updateSelectionButtons() {
   const n = selectedFiles.size;
   if (parseSelected) parseSelected.disabled = isFlightTransferActive || n !== 1;
-  if (downloadSelected) downloadSelected.disabled = isFlightTransferActive || n === 0;
+  if (downloadSelected) {
+    downloadSelected.disabled = isFlightTransferActive ? false : n === 0;
+    downloadSelected.textContent = isFlightTransferActive ? "取消传输" : "下载到本地";
+    downloadSelected.classList.toggle("cancel-transfer", isFlightTransferActive);
+  }
 }
 
 function downloadBlobAsFile(name, arrayBuffer) {
@@ -111,6 +130,33 @@ function getKnownTotalSize(files) {
   return files.reduce((sum, file) => sum + file.size, 0);
 }
 
+function joinRemotePath(directory, name) {
+  return `${directory.replace(/\/$/, "")}/${name}`;
+}
+
+function resetSessionHint() {
+  if (!flightSessionHint) {
+    return;
+  }
+  flightSessionHint.hidden = true;
+  flightSessionHint.textContent = "";
+}
+
+function showSessionHint(sessionId) {
+  if (!flightSessionHint) {
+    return;
+  }
+  flightSessionHint.hidden = false;
+  flightSessionHint.textContent = `当前最新文件夹是 session_${sessionId}`;
+}
+
+function decodeTextFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const end = bytes.indexOf(0);
+  const content = new TextDecoder().decode(end >= 0 ? bytes.slice(0, end) : bytes);
+  return content.trim();
+}
+
 function showTransferProgress(label, loaded = 0, total = 0, speed = 0) {
   if (!flightTransfer || !flightTransferLabel || !flightTransferStats || !flightTransferProgress) {
     return;
@@ -132,6 +178,22 @@ function showTransferProgress(label, loaded = 0, total = 0, speed = 0) {
     flightTransferProgress.removeAttribute("value");
     flightTransferStats.textContent = `${formatBytes(loaded)} · ${formatSpeed(speed)}/s`;
   }
+}
+
+function showStoppedTransferProgress(label) {
+  if (!flightTransfer || !flightTransferLabel || !flightTransferStats || !flightTransferProgress) {
+    return;
+  }
+  if (transferProgressFrame !== null) {
+    cancelAnimationFrame(transferProgressFrame);
+    transferProgressFrame = null;
+    pendingTransferProgress = null;
+  }
+  flightTransfer.hidden = false;
+  flightTransferLabel.textContent = label;
+  flightTransferProgress.max = 100;
+  flightTransferProgress.value = 0;
+  flightTransferStats.textContent = "0%";
 }
 
 function resetTransferProgress() {
@@ -179,6 +241,7 @@ async function disconnectFlightController({ updateMainStatus = true } = {}) {
     if (flightLogList) {
       flightLogList.innerHTML = '<div class="empty-state">已断开连接。</div>';
     }
+    resetSessionHint();
     selectedFiles.clear();
     updateSelectionButtons();
     if (updateMainStatus) {
@@ -229,6 +292,7 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
   let lastProgressBytes = 0;
   let smoothedSpeed = 0;
   isFlightTransferActive = true;
+  transferAbortController = new AbortController();
   if (refreshFlightLogList) refreshFlightLogList.disabled = true;
   updateSelectionButtons();
 
@@ -245,6 +309,7 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
       );
       const buffer = await mavlinkFtpClient.readFile(file.path, {
         size: fileTotal,
+        signal: transferAbortController.signal,
         onProgress: ({ loaded, total }) => {
           const aggregateLoaded = completedBytes + loaded;
           const now = performance.now();
@@ -284,6 +349,7 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
     }
   } finally {
     isFlightTransferActive = false;
+    transferAbortController = null;
     if (refreshFlightLogList) refreshFlightLogList.disabled = !mavlinkFtpClient;
     updateSelectionButtons();
   }
@@ -658,6 +724,7 @@ flightControllerImport.addEventListener("click", async () => {
   try {
     selectedFlightControllerPort = await navigator.serial.requestPort();
     resetTransferProgress();
+    resetSessionHint();
     flightControllerDialogStatus.textContent = "串口已授权，等待连接。";
     flightLogList.innerHTML = '<div class="empty-state">点击“连接飞控”后，将通过 MAVLink FTP 读取日志目录。</div>';
     refreshFlightLogList.disabled = true;
@@ -718,19 +785,39 @@ refreshFlightLogList.addEventListener("click", async () => {
   refreshFlightLogList.disabled = true;
   flightControllerDialogStatus.textContent = `正在读取目录：${remoteLogPath.value}`;
   flightLogList.innerHTML = '<div class="empty-state">正在读取文件列表...</div>';
+  resetTransferProgress();
+  resetSessionHint();
 
   try {
     // recursive fetch
     selectedFiles.clear();
     updateSelectionButtons();
     const rootPath = (remoteLogPath.value || "/log/").trim();
+    const normalizedRootPath = rootPath.endsWith("/") ? rootPath : rootPath + "/";
+    const rootList = await mavlinkFtpClient.listDirectory(normalizedRootPath);
+    const sessionEntry = rootList.find((entry) => entry.type === "F" && entry.name === "session_id");
+    let sessionLabel = "";
 
-    async function fetchRecursive(path) {
-      const list = await mavlinkFtpClient.listDirectory(path);
+    if (sessionEntry) {
+      const sessionPath = joinRemotePath(normalizedRootPath, sessionEntry.name);
+      try {
+        const sessionBuffer = await mavlinkFtpClient.readFile(sessionPath, { size: sessionEntry.size });
+        const sessionId = decodeTextFile(sessionBuffer);
+        if (sessionId) {
+          sessionLabel = `，当前最新文件夹是 session_${sessionId}`;
+          showSessionHint(sessionId);
+        }
+      } catch (error) {
+        sessionLabel = `，读取 session_id 失败：${error.message}`;
+      }
+    }
+
+    async function fetchRecursive(path, knownList = null) {
+      const list = knownList ?? await mavlinkFtpClient.listDirectory(path);
       const nodes = [];
       for (const entry of list) {
         const name = entry.name;
-        const fullPath = path.replace(/\/$/, "") + "/" + name;
+        const fullPath = joinRemotePath(path, name);
         if (entry.type === "D") {
           const children = await fetchRecursive(fullPath + "/");
           nodes.push({ type: "D", name, path: fullPath + "/", children });
@@ -741,14 +828,14 @@ refreshFlightLogList.addEventListener("click", async () => {
       return nodes;
     }
 
-    const tree = await fetchRecursive(rootPath.endsWith("/") ? rootPath : rootPath + "/");
+    const tree = await fetchRecursive(normalizedRootPath, rootList);
 
     // render as compact table with collapsible directories
     function renderTable(treeNodes, container) {
       const table = document.createElement('table');
       table.className = 'flight-log-table';
       const thead = document.createElement('thead');
-      thead.innerHTML = `<tr><th style="width:80px">类型</th><th>名称</th><th style="width:120px">大小</th></tr>`;
+      thead.innerHTML = `<tr><th style="width:80px">类型</th><th class="name-header">名称</th><th style="width:120px">大小</th></tr>`;
       const tbody = document.createElement('tbody');
 
       let idCounter = 1;
@@ -925,7 +1012,7 @@ refreshFlightLogList.addEventListener("click", async () => {
     }
 
     renderTable(tree, flightLogList);
-    flightControllerDialogStatus.textContent = `已读取并构建目录树`;
+    flightControllerDialogStatus.textContent = `已读取并构建目录树${sessionLabel}`;
   } catch (error) {
     flightLogList.innerHTML = `<div class="empty-state">读取失败：${escapeHtml(error.message)}</div>`;
     flightControllerDialogStatus.textContent = `读取目录失败：${error.message}`;
@@ -949,6 +1036,11 @@ if (parseSelected) {
       closeAfterParse = true;
       flightControllerDialog.close();
     } catch (error) {
+      if (isAbortError(error)) {
+        showStoppedTransferProgress("传输已取消");
+        setStatus("读取飞控日志已取消");
+        return;
+      }
       showTransferProgress(`传输失败：${error.message}`);
       setStatus(`读取飞控日志失败：${error.message}`, "error");
     }
@@ -957,6 +1049,11 @@ if (parseSelected) {
 
 if (downloadSelected) {
   downloadSelected.addEventListener('click', async () => {
+    if (isFlightTransferActive) {
+      transferAbortController?.abort(makeAbortError());
+      showStoppedTransferProgress("正在取消传输...");
+      return;
+    }
     if (selectedFiles.size === 0 || isFlightTransferActive) return;
     const files = getSelectedRemoteFiles();
     try {
@@ -965,6 +1062,11 @@ if (downloadSelected) {
       finishTransferProgress(`已下载 ${files.length} 个文件`);
       setStatus(`已下载 ${files.length} 个飞控日志文件`, "ok");
     } catch (error) {
+      if (isAbortError(error)) {
+        showStoppedTransferProgress("传输已取消");
+        setStatus("下载飞控日志已取消");
+        return;
+      }
       showTransferProgress(`传输失败：${error.message}`);
       setStatus(`下载飞控日志失败：${error.message}`, "error");
     }

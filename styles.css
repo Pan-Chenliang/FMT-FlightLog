@@ -364,6 +364,14 @@ button.connected:hover {
   background: #c9302c;
 }
 
+button.cancel-transfer {
+  background: #d9534f;
+}
+
+button.cancel-transfer:hover {
+  background: #c9302c;
+}
+
 .fc-dialog {
   width: min(720px, calc(100% - 32px));
   border: 0;
@@ -485,6 +493,25 @@ button.connected:hover {
   width: 100%;
   height: 10px;
   accent-color: var(--primary);
+}
+
+.fc-session-hint {
+  margin: -4px 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #b9cceb;
+  border-radius: 8px;
+  background: #f3f7ff;
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fc-session-hint[hidden] {
+  display: none;
+}
+
+.flight-log-table .name-header {
+  padding-left: 48px;
 }
 
 .flight-log-table .name-cell input[type="checkbox"] {
