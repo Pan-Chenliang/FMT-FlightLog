@@ -42,34 +42,21 @@ body {
   box-shadow: var(--shadow);
 }
 
-.language-switch {
-  display: inline-flex;
-  overflow: hidden;
-  margin-bottom: 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #f7f9fc;
-  padding: 3px;
-}
-
-.language-option {
-  min-width: 42px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  box-shadow: none;
-  font-size: 12px;
-  padding: 6px 10px;
-}
-
-.language-option:hover {
-  background: #e9f1ff;
-}
-
-.language-option.active {
+.language-toggle {
+  min-width: 52px;
+  height: 32px;
+  margin-bottom: 10px;
+  border-radius: 6px;
   background: var(--primary);
   color: #fff;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 12px;
+}
+
+.language-toggle:hover {
+  background: var(--primary-dark);
 }
 
 .eyebrow {

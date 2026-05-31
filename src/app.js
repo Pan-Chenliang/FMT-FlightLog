@@ -1,7 +1,7 @@
 import { clearLastLog, loadLastLog, saveLastLog } from "./logCache.js";
 import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
 
-const languageButtons = document.querySelectorAll("[data-language]");
+const languageToggle = document.querySelector("#languageToggle");
 const mainTitle = document.querySelector("#mainTitle");
 const fileInput = document.querySelector("#fileInput");
 const dropZone = document.querySelector("#dropZone");
@@ -20,11 +20,12 @@ const titles = {
   en: "FMT MLog Online Log Parser",
 };
 
-function setLanguage(language) {
-  mainTitle.textContent = titles[language];
-  languageButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.language === language);
-  });
+let currentLanguage = "zh";
+
+function toggleLanguage() {
+  currentLanguage = currentLanguage === "zh" ? "en" : "zh";
+  mainTitle.textContent = titles[currentLanguage];
+  languageToggle.textContent = currentLanguage === "zh" ? "EN" : "中文";
 }
 
 function setStatus(text, kind = "") {
@@ -379,8 +380,6 @@ dropZone.addEventListener("drop", (event) => {
   }
 });
 
-languageButtons.forEach((button) => {
-  button.addEventListener("click", () => setLanguage(button.dataset.language));
-});
+languageToggle.addEventListener("click", toggleLanguage);
 
 restoreCachedLog();
