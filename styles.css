@@ -42,7 +42,10 @@ body {
   box-shadow: var(--shadow);
 }
 
-.language-toggle {
+.header-language-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 52px;
   height: 32px;
   margin-bottom: 10px;
@@ -55,7 +58,7 @@ body {
   padding: 0 12px;
 }
 
-.language-toggle:hover {
+.header-language-button:hover {
   background: var(--primary-dark);
 }
 
