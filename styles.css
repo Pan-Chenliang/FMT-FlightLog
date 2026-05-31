@@ -43,24 +43,26 @@ body {
 }
 
 button.header-language-button {
-  display: inline-block;
-  min-width: 0;
-  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 28px;
   margin-bottom: 18px;
-  border: 0;
-  border-bottom: 1px solid currentColor;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid #b9cceb;
+  border-radius: 4px;
+  background: #fff;
   color: var(--primary);
   box-shadow: none;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 700;
   line-height: 1;
-  padding: 0 0 6px;
+  padding: 0 10px;
 }
 
 button.header-language-button:hover {
-  background: transparent;
+  border-color: var(--primary);
+  background: #f3f7ff;
   color: var(--primary-dark);
 }
 
