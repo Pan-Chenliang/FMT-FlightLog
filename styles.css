@@ -43,23 +43,25 @@ body {
 }
 
 .header-language-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 52px;
-  height: 32px;
-  margin-bottom: 10px;
-  border-radius: 6px;
-  background: var(--primary);
-  color: #fff;
+  display: inline-block;
+  min-width: 0;
+  height: auto;
+  margin-bottom: 18px;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  color: var(--primary-dark);
   box-shadow: none;
   font-size: 12px;
+  font-weight: 700;
   line-height: 1;
-  padding: 0 12px;
+  padding: 0 0 3px;
 }
 
 .header-language-button:hover {
-  background: var(--primary-dark);
+  background: transparent;
+  color: var(--primary);
 }
 
 .eyebrow {
