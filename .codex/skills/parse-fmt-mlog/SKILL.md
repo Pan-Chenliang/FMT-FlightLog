@@ -28,6 +28,7 @@ description: Browser-side FMT MLog parsing and flight-log visualization guidance
 
 - `src/mlogParser.js`: parser, CSV export, and chart-series selection.
 - `src/app.js`: file upload, rendering, downloads, and canvas charts.
+- `src/logCache.js`: IndexedDB cache for the most recent uploaded log; keep logs local to the browser.
 - `test/smoke.test.js`: minimal synthetic MLog sample used as a regression test.
 - `index.html` and `styles.css`: static UI for GitHub Pages.
 

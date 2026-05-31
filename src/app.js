@@ -1,3 +1,4 @@
+import { clearLastLog, loadLastLog, saveLastLog } from "./logCache.js";
 import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
 
 const fileInput = document.querySelector("#fileInput");
@@ -14,6 +15,14 @@ const downloadActions = document.querySelector("#downloadActions");
 function setStatus(text, kind = "") {
   statusText.textContent = text;
   statusText.className = kind;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;");
 }
 
 function formatValue(value) {
@@ -35,7 +44,7 @@ function renderMeta(result) {
   ];
 
   metaList.innerHTML = meta
-    .map(([label, value]) => `<div><dt>${label}</dt><dd>${formatValue(value)}</dd></div>`)
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(formatValue(value))}</dd></div>`)
     .join("");
 }
 
@@ -50,7 +59,7 @@ function renderBusTable(result) {
       (bus) => `
         <tr>
           <td>${bus.id}</td>
-          <td>${bus.name || "-"}</td>
+          <td>${escapeHtml(bus.name || "-")}</td>
           <td>${bus.elements.length}</td>
           <td>${bus.payloadSize} B</td>
           <td>${bus.frames.length}</td>
@@ -170,8 +179,8 @@ function renderCharts(result) {
       (series, index) => `
         <div class="chart-card">
           <div class="chart-title">
-            <span>${series.busName}.${series.field}</span>
-            <small>x: ${series.xLabel}</small>
+            <span>${escapeHtml(series.busName)}.${escapeHtml(series.field)}</span>
+            <small>x: ${escapeHtml(series.xLabel)}</small>
           </div>
           <canvas id="chart-${index}" height="260"></canvas>
         </div>
@@ -231,21 +240,44 @@ function renderDownloads(result) {
     });
     downloadActions.append(button);
   }
+
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.textContent = "清除缓存";
+  clearButton.addEventListener("click", async () => {
+    try {
+      await clearLastLog();
+      setStatus("缓存已清除");
+    } catch (error) {
+      setStatus(`清除缓存失败：${error.message}`, "error");
+    }
+  });
+  downloadActions.append(clearButton);
 }
 
-async function handleFile(file) {
-  fileName.textContent = file.name;
+async function parseAndRender(buffer, displayName, cacheMeta = null) {
+  fileName.textContent = displayName;
   busCount.textContent = "-";
   frameCount.textContent = "-";
   setStatus("解析中");
 
   try {
-    const buffer = await file.arrayBuffer();
     const result = parseMlog(buffer);
+
+    if (cacheMeta) {
+      try {
+        await saveLastLog({
+          ...cacheMeta,
+          buffer,
+        });
+      } catch (error) {
+        result.warnings.push(`日志缓存失败：${error.message}`);
+      }
+    }
 
     busCount.textContent = result.buses.length;
     frameCount.textContent = result.totalFrames;
-    setStatus("解析完成", "ok");
+    setStatus(cacheMeta ? "解析完成，已缓存" : "已从缓存恢复", "ok");
 
     renderMeta(result);
     renderBusTable(result);
@@ -253,7 +285,32 @@ async function handleFile(file) {
     renderDownloads(result);
   } catch (error) {
     setStatus("解析失败", "error");
-    chartGrid.innerHTML = `<div class="empty-state">解析失败：${error.message}</div>`;
+    chartGrid.innerHTML = `<div class="empty-state">解析失败：${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function handleFile(file) {
+  const buffer = await file.arrayBuffer();
+  await parseAndRender(buffer, file.name, {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+async function restoreCachedLog() {
+  try {
+    const cached = await loadLastLog();
+    if (!cached) {
+      return;
+    }
+
+    const savedTime = cached.savedAt ? new Date(cached.savedAt).toLocaleString() : "";
+    const suffix = savedTime ? `（缓存：${savedTime}）` : "（缓存）";
+    await parseAndRender(cached.buffer, `${cached.name}${suffix}`);
+  } catch (error) {
+    setStatus(`读取缓存失败：${error.message}`, "error");
   }
 }
 
@@ -281,3 +338,5 @@ dropZone.addEventListener("drop", (event) => {
     handleFile(file);
   }
 });
+
+restoreCachedLog();
