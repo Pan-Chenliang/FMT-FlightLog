@@ -425,12 +425,28 @@ connectFlightController.addEventListener("click", async () => {
   }
 
   try {
-    if (!selectedFlightControllerPort.readable || !selectedFlightControllerPort.writable) {
-      await selectedFlightControllerPort.open({ baudRate: Number(baudRateSelect.value) });
+    // If already connected, treat as a disconnect request
+    if (mavlinkFtpClient) {
+      console.log("app.js: disconnecting from flight controller");
+      await mavlinkFtpClient.close();
+      mavlinkFtpClient = null;
+      refreshFlightLogList.disabled = true;
+      connectFlightController.classList.remove("connected");
+      connectFlightController.textContent = "连接飞控";
+      flightControllerDialogStatus.textContent = "已断开连接。";
+      flightLogList.innerHTML = '<div class="empty-state">已断开连接。</div>';
+      setStatus("已断开连接");
+      return;
     }
+
+    console.log('app.js: connectFlightController clicked - starting open');
     mavlinkFtpClient = new MavlinkFtpClient(selectedFlightControllerPort);
+    // Use the client's internal open with a timeout to avoid UI hang if driver stalls
     await mavlinkFtpClient.open(Number(baudRateSelect.value));
+    console.log('app.js: mavlinkFtpClient.open returned');
     refreshFlightLogList.disabled = false;
+    connectFlightController.classList.add("connected");
+    connectFlightController.textContent = "断开连接";
     flightControllerDialogStatus.textContent = `串口已连接，日志路径：${remoteLogPath.value}`;
     flightLogList.innerHTML = '<div class="empty-state">点击“刷新文件列表”读取飞控日志目录。</div>';
   } catch (error) {

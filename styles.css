@@ -355,6 +355,15 @@ button:hover {
   background: var(--primary-dark);
 }
 
+/* Connected state for flight controller button */
+button.connected {
+  background: #d9534f;
+}
+
+button.connected:hover {
+  background: #c9302c;
+}
+
 .fc-dialog {
   width: min(720px, calc(100% - 32px));
   border: 0;

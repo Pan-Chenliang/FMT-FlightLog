@@ -1,7 +1,8 @@
 # FMT FlightLog
 
 一个面向 GitHub Pages 的纯静态 FMT MLog 解析工具。用户在浏览器中上传日志文件后，页面直接在本地解析二进制日志、统计消息帧，并绘制数值字段曲线。
-https://pan-chenliang.github.io/FMT-FlightLog/
+
+页面：https://pan-chenliang.github.io/FMT-FlightLog/
 
 ## 当前能力
 
