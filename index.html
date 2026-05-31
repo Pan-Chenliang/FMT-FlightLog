@@ -16,8 +16,8 @@
           <p class="summary">上传mlog日志文件，页面会在本地浏览器内解析消息帧、绘制曲线并提供下载。</p>
           <nav class="resource-links" aria-label="FMT resources">
             <a href="https://docs.sieon.net/fmt/#/" target="_blank" rel="noreferrer">FMT User Guide</a>
-            <a href="https://github.com/Firmament-Autopilot/FMT-Firmware" target="_blank" rel="noreferrer">FMT-Firmware</a>
-            <a href="https://github.com/Firmament-Autopilot/FMT-Model" target="_blank" rel="noreferrer">FMT-Model</a>
+            <a href="https://github.com/Firmament-Autopilot/FMT-Firmware" target="_blank" rel="noreferrer">FMT Firmware</a>
+            <a href="https://github.com/Firmament-Autopilot/FMT-Model" target="_blank" rel="noreferrer">FMT Model</a>
           </nav>
         </div>
 
@@ -150,7 +150,11 @@
 
         <div class="fc-actions">
           <button id="connectFlightController" type="button">连接飞控</button>
-          <button id="refreshFlightLogList" type="button" disabled>刷新文件列表</button>
+          <div class="fc-action-group">
+            <button id="refreshFlightLogList" type="button" disabled>刷新文件列表</button>
+            <button id="parseSelected" type="button" disabled>解析日志</button>
+            <button id="downloadSelected" type="button" disabled>下载到本地</button>
+          </div>
         </div>
 
         <div class="fc-file-list" id="flightLogList">

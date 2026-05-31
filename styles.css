@@ -439,6 +439,80 @@ button.connected:hover {
   margin-bottom: 16px;
 }
 
+.fc-action-group {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.flight-log-table .name-cell input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.dir-checkbox {
+  margin-right: 8px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.dir-toggle,
+.file-toggle {
+  position: relative;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0;
+  appearance: none;
+  flex: 0 0 auto;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease;
+}
+
+.dir-toggle:hover,
+.file-toggle:hover {
+  border-color: var(--primary);
+  background: #fff;
+}
+
+.dir-toggle:focus,
+.file-toggle:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(29, 95, 209, 0.18);
+}
+
+.dir-toggle::after,
+.file-toggle::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  display: block;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.dir-toggle.checked,
+.file-toggle.checked {
+  background: #fff;
+  border-color: var(--primary);
+}
+
+.dir-toggle.checked::after,
+.file-toggle.checked::after {
+  background: var(--primary);
+}
+
 .fc-actions button:disabled {
   background: #c9d3e2;
   cursor: not-allowed;

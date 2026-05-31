@@ -9,6 +9,8 @@ const flightControllerDialog = document.querySelector("#flightControllerDialog")
 const closeFlightControllerDialog = document.querySelector("#closeFlightControllerDialog");
 const connectFlightController = document.querySelector("#connectFlightController");
 const refreshFlightLogList = document.querySelector("#refreshFlightLogList");
+const parseSelected = document.querySelector("#parseSelected");
+const downloadSelected = document.querySelector("#downloadSelected");
 const baudRateSelect = document.querySelector("#baudRateSelect");
 const remoteLogPath = document.querySelector("#remoteLogPath");
 const flightLogList = document.querySelector("#flightLogList");
@@ -33,6 +35,23 @@ const titles = {
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
 let mavlinkFtpClient = null;
+let selectedFiles = new Set();
+
+function updateSelectionButtons() {
+  const n = selectedFiles.size;
+  if (parseSelected) parseSelected.disabled = n !== 1;
+  if (downloadSelected) downloadSelected.disabled = n === 0;
+}
+
+function downloadBlobAsFile(name, arrayBuffer) {
+  const blob = new Blob([arrayBuffer]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function toggleLanguage() {
   currentLanguage = currentLanguage === "zh" ? "en" : "zh";
@@ -465,36 +484,209 @@ refreshFlightLogList.addEventListener("click", async () => {
   flightLogList.innerHTML = '<div class="empty-state">正在读取文件列表...</div>';
 
   try {
-    const entries = await mavlinkFtpClient.listDirectory(remoteLogPath.value.trim() || "/log/");
-    if (entries.length === 0) {
-      flightLogList.innerHTML = '<div class="empty-state">该目录没有返回文件。</div>';
-    } else {
-      flightLogList.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>类型</th>
-              <th>名称</th>
-              <th>大小</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${entries
-              .map(
-                (entry) => `
-                  <tr>
-                    <td>${entry.type === "D" ? "目录" : "文件"}</td>
-                    <td>${escapeHtml(entry.name)}</td>
-                    <td>${Number.isFinite(entry.size) ? entry.size : "-"}</td>
-                  </tr>
-                `,
-              )
-              .join("")}
-          </tbody>
-        </table>
-      `;
+    // recursive fetch
+    selectedFiles.clear();
+    updateSelectionButtons();
+    const rootPath = (remoteLogPath.value || "/log/").trim();
+
+    async function fetchRecursive(path) {
+      const list = await mavlinkFtpClient.listDirectory(path);
+      const nodes = [];
+      for (const entry of list) {
+        const name = entry.name;
+        const fullPath = path.replace(/\/$/, "") + "/" + name;
+        if (entry.type === "D") {
+          const children = await fetchRecursive(fullPath + "/");
+          nodes.push({ type: "D", name, path: fullPath + "/", children });
+        } else {
+          nodes.push({ type: "F", name, path: fullPath, size: entry.size });
+        }
+      }
+      return nodes;
     }
-    flightControllerDialogStatus.textContent = `已读取 ${entries.length} 个条目。`;
+
+    const tree = await fetchRecursive(rootPath.endsWith("/") ? rootPath : rootPath + "/");
+
+    // render as compact table with collapsible directories
+    function renderTable(treeNodes, container) {
+      const table = document.createElement('table');
+      table.className = 'flight-log-table';
+      const thead = document.createElement('thead');
+      thead.innerHTML = `<tr><th style="width:80px">类型</th><th>名称</th><th style="width:120px">大小</th></tr>`;
+      const tbody = document.createElement('tbody');
+
+      let idCounter = 1;
+      const childrenMap = new Map();
+
+      function getRow(id) {
+        return tbody.querySelector(`tr[data-id="${id}"]`);
+      }
+
+      function getAllDescendants(parentId) {
+        const out = [];
+        const stack = [...(childrenMap.get(parentId) || [])];
+        while (stack.length) {
+          const childId = stack.shift();
+          out.push(childId);
+          const grandchildren = childrenMap.get(childId);
+          if (grandchildren && grandchildren.length) stack.push(...grandchildren);
+        }
+        return out;
+      }
+
+      function setFileSelected(row, isSelected) {
+        const toggle = row.querySelector('.file-toggle');
+        if (!toggle) return;
+        toggle.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        toggle.classList.toggle('checked', isSelected);
+        if (isSelected) {
+          selectedFiles.add(row.dataset.path);
+        } else {
+          selectedFiles.delete(row.dataset.path);
+        }
+      }
+
+      function setDirectorySelected(row, isSelected, state = isSelected ? '2' : '0') {
+        const toggle = row.querySelector('.dir-toggle');
+        if (!toggle) return;
+        toggle.dataset.state = state;
+        toggle.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        toggle.classList.toggle('checked', isSelected);
+        toggle.classList.remove('indeterminate');
+      }
+
+      function setDescendantsSelected(parentId, isSelected) {
+        for (const childId of getAllDescendants(parentId)) {
+          const row = getRow(childId);
+          if (!row) continue;
+          if (row.dataset.type === 'F') {
+            setFileSelected(row, isSelected);
+          } else {
+            setDirectorySelected(row, isSelected, isSelected ? '2' : '0');
+          }
+        }
+      }
+
+      function addRows(nodes, depth = 0, parentId = '') {
+        for (const node of nodes) {
+          const id = `n${idCounter++}`;
+          if (parentId) {
+            const arr = childrenMap.get(parentId) || [];
+            arr.push(id);
+            childrenMap.set(parentId, arr);
+          }
+
+          const tr = document.createElement('tr');
+          tr.dataset.id = id;
+          if (parentId) tr.dataset.parent = parentId;
+          tr.dataset.type = node.type;
+          tr.dataset.path = node.path;
+
+          const tdType = document.createElement('td');
+          tdType.textContent = node.type === 'D' ? '目录' : '文件';
+
+          const tdName = document.createElement('td');
+          tdName.className = 'name-cell';
+          tdName.style.paddingLeft = `${24 + depth * 16}px`;
+
+          if (node.type === 'D') {
+            // Directory control: three-state cycle
+            // 0 = collapsed/unchecked, 1 = expanded (unchecked), 2 = checked (select all descendants)
+            // Use a JS-controlled non-form element to avoid browser native checkbox timing races
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'dir-toggle';
+            toggle.setAttribute('role', 'checkbox');
+            toggle.setAttribute('aria-checked', 'false');
+            toggle.dataset.state = '0';
+
+            toggle.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const state = Number(toggle.dataset.state || '0');
+              if (state === 0) {
+                // First click: expand only.
+                setDirectorySelected(tr, false, '1');
+                showChildren(id);
+              } else if (state === 1) {
+                // Second click: select this directory control and every descendant file.
+                setDescendantsSelected(id, true);
+                setDirectorySelected(tr, true, '2');
+                updateSelectionButtons();
+              } else {
+                // Third click: collapse and clear every descendant selection.
+                setDescendantsSelected(id, false);
+                setDirectorySelected(tr, false, '0');
+                hideDescendants(id);
+                updateSelectionButtons();
+              }
+            });
+
+            const label = document.createElement('span');
+            label.textContent = node.name;
+            tdName.append(toggle, label);
+          } else {
+            // File control: use a button sized like dir-toggle to avoid native checkbox races
+            const cb = document.createElement('button');
+            cb.type = 'button';
+            cb.className = 'file-toggle';
+            cb.setAttribute('role', 'checkbox');
+            cb.setAttribute('aria-checked', 'false');
+            cb.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              const checked = cb.getAttribute('aria-checked') === 'true';
+              setFileSelected(tr, !checked);
+              updateSelectionButtons();
+            });
+            const label = document.createElement('span');
+            label.textContent = node.name;
+            tdName.append(cb, label);
+          }
+
+          const tdSize = document.createElement('td');
+          tdSize.textContent = node.type === 'D' ? '-' : (Number.isFinite(node.size) ? `${node.size} B` : '-');
+
+          tr.append(tdType, tdName, tdSize);
+          tbody.appendChild(tr);
+
+          if (node.type === 'D') {
+            childrenMap.set(id, []);
+            addRows(node.children, depth + 1, id);
+          }
+        }
+      }
+
+      function showChildren(parentId) {
+        const children = childrenMap.get(parentId) || [];
+        for (const cid of children) {
+          const row = getRow(cid);
+          if (row) row.style.display = '';
+        }
+      }
+
+      function hideDescendants(parentId) {
+        const children = childrenMap.get(parentId) || [];
+        for (const cid of children) {
+          const row = getRow(cid);
+          if (row) {
+            row.style.display = 'none';
+            if (childrenMap.has(cid)) hideDescendants(cid);
+            if (row.dataset.type === 'D') setDirectorySelected(row, false, '0');
+          }
+        }
+      }
+
+      addRows(treeNodes, 0, '');
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      container.innerHTML = '';
+      container.appendChild(table);
+
+      tbody.querySelectorAll('tr[data-parent]').forEach((r) => (r.style.display = 'none'));
+    }
+
+    renderTable(tree, flightLogList);
+    flightControllerDialogStatus.textContent = `已读取并构建目录树`;
   } catch (error) {
     flightLogList.innerHTML = `<div class="empty-state">读取失败：${escapeHtml(error.message)}</div>`;
     flightControllerDialogStatus.textContent = `读取目录失败：${error.message}`;
@@ -504,3 +696,21 @@ refreshFlightLogList.addEventListener("click", async () => {
 });
 
 restoreCachedLog();
+
+// parse/download button handlers (readFile not implemented in client yet)
+if (parseSelected) {
+  parseSelected.addEventListener('click', () => {
+    if (selectedFiles.size !== 1) return;
+    const [path] = Array.from(selectedFiles);
+    setStatus('解析功能暂未实现（需读取飞控文件）', 'error');
+    console.info('parse requested for', path);
+  });
+}
+
+if (downloadSelected) {
+  downloadSelected.addEventListener('click', () => {
+    if (selectedFiles.size === 0) return;
+    setStatus('下载功能暂未实现（需读取飞控文件）', 'error');
+    console.info('download requested for', Array.from(selectedFiles));
+  });
+}
