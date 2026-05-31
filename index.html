@@ -7,10 +7,13 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <button class="language-toggle" id="languageToggle" type="button">EN</button>
     <main class="app-shell">
       <section class="upload-panel">
         <div>
+          <div class="language-switch" aria-label="Language">
+            <button class="language-option active" data-language="zh" type="button">中</button>
+            <button class="language-option" data-language="en" type="button">EN</button>
+          </div>
           <p class="eyebrow">FMT FlightLog</p>
           <h1 id="mainTitle">FMT MLog 日志在线解析工具</h1>
           <p class="summary">上传mlog日志文件，页面会在本地浏览器内解析消息帧、绘制曲线并提供下载。</p>
