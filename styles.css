@@ -456,12 +456,22 @@ th {
 
 .chart-module-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  border: 0;
   border-bottom: 1px solid var(--line);
+  padding: 14px 16px 14px 8px;
   background: #f8fafc;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.chart-module-header:hover {
+  background: #eef4fb;
 }
 
 .chart-module-header h3 {
@@ -474,6 +484,30 @@ th {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.chart-module-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  transform-origin: center;
+}
+
+.chart-module-chevron::before {
+  content: "▾";
+}
+
+.chart-module.is-collapsed .chart-module-chevron {
+  transform: rotate(-90deg);
+}
+
+.chart-stack[hidden] {
+  display: none;
 }
 
 .chart-stack {

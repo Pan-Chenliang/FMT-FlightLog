@@ -1652,6 +1652,35 @@ function renderModuleContent(module, trajectory, timeSeries) {
   return '<div class="chart-module-empty">图表待添加</div>';
 }
 
+function resizePlotsIn(container) {
+  if (!window.Plotly) {
+    return;
+  }
+
+  container.querySelectorAll(".js-plotly-plot").forEach((plot) => {
+    window.Plotly.Plots.resize(plot);
+  });
+}
+
+function setupChartModuleCollapse() {
+  chartGrid.querySelectorAll(".chart-module").forEach((moduleElement) => {
+    const headerButton = moduleElement.querySelector(".chart-module-toggle");
+    const stack = moduleElement.querySelector(".chart-stack");
+    if (!headerButton || !stack) {
+      return;
+    }
+
+    headerButton.addEventListener("click", () => {
+      const collapsed = moduleElement.classList.toggle("is-collapsed");
+      stack.hidden = collapsed;
+      headerButton.setAttribute("aria-expanded", String(!collapsed));
+      if (!collapsed) {
+        requestAnimationFrame(() => resizePlotsIn(stack));
+      }
+    });
+  });
+}
+
 function renderCharts(result) {
   const trajectory = collectTrajectoryPoints(result);
   const timeSeries = poseTimeSeriesCharts.map((chart) => collectTimeSeriesPoints(result, chart));
@@ -1659,14 +1688,15 @@ function renderCharts(result) {
   chartGrid.innerHTML = chartModules
     .map(
       (module) => `
-        <section class="chart-module" aria-label="${escapeHtml(module.title)}">
-          <div class="chart-module-header">
+        <section class="chart-module is-collapsed" aria-label="${escapeHtml(module.title)}">
+          <button class="chart-module-header chart-module-toggle" type="button" aria-expanded="false">
+            <span class="chart-module-chevron" aria-hidden="true"></span>
             <div>
               <h3>${escapeHtml(module.title)}</h3>
               <p>${escapeHtml(module.description)}</p>
             </div>
-          </div>
-          <div class="chart-stack">
+          </button>
+          <div class="chart-stack" hidden>
             ${renderModuleContent(module, trajectory, timeSeries)}
           </div>
         </section>
@@ -1681,6 +1711,7 @@ function renderCharts(result) {
   }
   requestAnimationFrame(() => {
     timeSeries.filter((series) => !series.error).forEach(renderTimeSeriesPlot);
+    setupChartModuleCollapse();
   });
 }
 
