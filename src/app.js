@@ -40,10 +40,285 @@ const chartDialogMode = document.querySelector("#chartDialogMode");
 const chartDialogInteraction = document.querySelector("#chartDialogInteraction");
 const chartDialogReset = document.querySelector("#chartDialogReset");
 
-const titles = {
-  zh: "FMT MLog 日志在线解析工具",
-  en: "FMT MLog Online Log Parser",
+const translations = {
+  zh: {
+    mainTitle: "FMT MLog 日志在线解析工具",
+    summary: "上传mlog日志文件，页面会在本地浏览器内解析消息帧、绘制曲线并提供下载。",
+    importFromFc: "从飞控导入日志文件",
+    importFromFcHint: "通过浏览器连接飞控串口，直接下载并解析日志。",
+    selectLocalFile: "选择或拖入本地文件",
+    selectLocalFileHint: "所有计算都在浏览器运行，文件不会上传服务器。",
+    status: "状态",
+    waitingUpload: "等待上传",
+    file: "文件",
+    clearCache: "清除缓存",
+    messageCount: "消息数量",
+    parsedFrames: "解析帧数",
+    logSummary: "日志摘要",
+    description: "描述",
+    modelInfo: "模型信息",
+    parseWarnings: "解析警告",
+    messageList: "消息列表",
+    name: "名称",
+    value: "值",
+    paramType: "类型",
+    emptyName: "空名称",
+    fieldCount: "字段数",
+    payloadPerFrame: "单帧数据",
+    frames: "帧数",
+    waitingFile: "等待上传文件",
+    paramGroups: "参数组",
+    dataCharts: "数据图表",
+    chartsPlaceholder: "上传并解析日志后，将在这里配置和显示数据图表。",
+    close: "关闭",
+    baudRate: "波特率",
+    logPath: "日志路径",
+    connectFc: "连接飞控",
+    disconnectFc: "断开连接",
+    refreshFileList: "刷新文件列表",
+    parseLog: "解析日志",
+    downloadLocal: "下载到本地",
+    cancelTransfer: "取消传输",
+    waitingTransfer: "等待传输",
+    fcListPlaceholder: "选择串口后，先连接飞控；随后将通过 MAVLink FTP 列出日志文件。",
+    serialReady: "串口已授权，等待连接。",
+    trajectory: "航迹",
+    dialogTrajectoryPlot: "弹窗航迹图",
+    dialogTrajectoryActions: "弹窗航迹图操作",
+    toggle2d3d: "切换二维三维",
+    togglePanZoom: "切换平移缩放",
+    resetView: "复位视图",
+    switchTo2D: "切换二维",
+    switchTo3D: "切换三维",
+    switchToZoom: "切换到缩放",
+    switchToPan: "切换到平移",
+    expandImage: "展开图片",
+    downloadImage: "下载图片",
+    downloadCsv: "下载数据 CSV",
+    threeDTrajectory: "三维航迹",
+    twoDTrajectory: "二维航迹",
+    startEnd: "起点/终点",
+    startEndLabels: "起点/终点标签",
+    start: "起点",
+    end: "终点",
+    ground: "地面 z=0",
+    curve: "曲线",
+    points: "点",
+    noCharts: "图表待添加",
+    plotlyTrajectoryFailed: "Plotly.js 加载失败，无法显示航迹图。",
+    plotlyChartFailed: "Plotly.js 加载失败，无法显示{title}图。",
+    msgNoBus: "没有找到 {busName} 消息，无法绘制{title}。",
+    msgMissingFields: "{busName} 缺少字段：{fields}。",
+    msgNotEnoughTrajectory: "{busName}.{fields} 有效数据点不足。",
+    msgNotEnoughSeries: "{busName}.{field} 有效数据点不足。",
+    fileFormatVersion: "文件格式版本",
+    startTime: "起始时间",
+    endTime: "结束时间",
+    duration: "日志时长",
+    validStartTime: "有效起始时间",
+    firmware: "固件",
+    airframe: "机架类型",
+    skippedBytes: "跳过字节",
+    none: "-",
+    busFirstSample: "首个多样本消息时间戳",
+    headerTimestamp: "文件头 timestamp",
+    currentLogNotRecorded: "当前日志未记录",
+    noMessages: "未找到消息定义",
+    noParamGroups: "未找到参数组",
+    paramCount: "{count} 个参数",
+    disconnected: "已断开连接。",
+    selectFcFirst: "请先选择飞控串口。",
+    connectFcFirst: "请先连接飞控。",
+    selectLogFirst: "请先选择日志文件。",
+    selectedFcPort: "已选择飞控串口",
+    connectedFc: "飞控已连接",
+    connectingPath: "串口已连接，日志路径：{path}",
+    clickConnectToList: "点击“连接飞控”后，将通过 MAVLink FTP 读取日志目录。",
+    clickRefreshToList: "点击“刷新文件列表”读取飞控日志目录。",
+    readingDir: "正在读取目录：{path}",
+    readingFileList: "正在读取文件列表...",
+    latestSession: "当前最新文件夹是 session_{id}",
+    latestSessionSuffix: "，当前最新文件夹是 session_{id}",
+    readSessionFailedSuffix: "，读取 session_id 失败：{message}",
+    type: "类型",
+    size: "大小",
+    directory: "目录",
+    localFile: "文件",
+    directoryBuilt: "已读取并构建目录树{suffix}",
+    readFailed: "读取失败：{message}",
+    readDirFailed: "读取目录失败：{message}",
+    downloadingFile: "正在传输 {label}{name}",
+    transferCanceled: "传输已取消",
+    cancelingTransfer: "正在取消传输...",
+    transferFailed: "传输失败：{message}",
+    readingFromFc: "正在从飞控读取 {name}",
+    readAndParsed: "已读取并解析 {name}",
+    readFcCanceled: "读取飞控日志已取消",
+    readFcFailed: "读取飞控日志失败：{message}",
+    downloadingFcFiles: "正在下载 {count} 个飞控日志文件",
+    downloadedFcFiles: "已下载 {count} 个飞控日志文件",
+    downloadFcCanceled: "下载飞控日志已取消",
+    downloadFcFailed: "下载飞控日志失败：{message}",
+    parsing: "解析中",
+    parseDoneCached: "解析完成，已缓存",
+    restoredCache: "已从缓存恢复",
+    parseFailed: "解析失败",
+    parseFailedDetail: "解析失败：{message}",
+    cacheFailed: "日志缓存失败：{message}",
+    fileCached: "文件（已缓存 {time}）",
+    fileCachedFrom: "文件（缓存自 {time}）",
+    cachedFile: "文件（缓存）",
+    cacheReadFailed: "读取缓存失败：{message}",
+    cacheCleared: "缓存已清除",
+    cacheClearFailed: "清除缓存失败：{message}",
+    browserNoSerial: "当前浏览器不支持 Web Serial，请使用桌面版 Chrome 或 Edge",
+    selectSerialFailed: "选择串口失败：{message}",
+    connectionFailed: "连接失败：{message}",
+    csvExportFailed: "导出 CSV 失败",
+    chartCsvExportFailed: "导出{title} CSV 失败",
+  },
+  en: {
+    mainTitle: "FMT MLog Online Log Parser",
+    summary: "Upload an MLog file to parse message frames, draw charts, and export data locally in your browser.",
+    importFromFc: "Import Logs from Flight Controller",
+    importFromFcHint: "Connect to the flight-controller serial port in the browser, then download and parse logs directly.",
+    selectLocalFile: "Select or Drop a Local File",
+    selectLocalFileHint: "All processing runs in the browser. Files are never uploaded to a server.",
+    status: "Status",
+    waitingUpload: "Waiting for upload",
+    file: "File",
+    clearCache: "Clear Cache",
+    messageCount: "Messages",
+    parsedFrames: "Parsed Frames",
+    logSummary: "Log Summary",
+    description: "Description",
+    modelInfo: "Model Info",
+    parseWarnings: "Parse Warnings",
+    messageList: "Message List",
+    name: "Name",
+    value: "Value",
+    paramType: "Type",
+    emptyName: "empty name",
+    fieldCount: "Fields",
+    payloadPerFrame: "Payload",
+    frames: "Frames",
+    waitingFile: "Waiting for a file",
+    paramGroups: "Parameter Groups",
+    dataCharts: "Data Charts",
+    chartsPlaceholder: "Upload and parse a log to configure and display data charts here.",
+    close: "Close",
+    baudRate: "Baud Rate",
+    logPath: "Log Path",
+    connectFc: "Connect FC",
+    disconnectFc: "Disconnect",
+    refreshFileList: "Refresh Files",
+    parseLog: "Parse Log",
+    downloadLocal: "Download",
+    cancelTransfer: "Cancel Transfer",
+    waitingTransfer: "Waiting for transfer",
+    fcListPlaceholder: "After selecting a serial port, connect to the flight controller to list logs through MAVLink FTP.",
+    serialReady: "Serial port authorized. Waiting to connect.",
+    trajectory: "Trajectory",
+    dialogTrajectoryPlot: "Expanded trajectory plot",
+    dialogTrajectoryActions: "Expanded trajectory plot actions",
+    toggle2d3d: "Toggle 2D/3D",
+    togglePanZoom: "Toggle Pan/Zoom",
+    resetView: "Reset View",
+    switchTo2D: "Switch to 2D",
+    switchTo3D: "Switch to 3D",
+    switchToZoom: "Switch to Zoom",
+    switchToPan: "Switch to Pan",
+    expandImage: "Expand Chart",
+    downloadImage: "Download Image",
+    downloadCsv: "Download CSV",
+    threeDTrajectory: "3D Trajectory",
+    twoDTrajectory: "2D Trajectory",
+    startEnd: "Start/End",
+    startEndLabels: "Start/End Labels",
+    start: "Start",
+    end: "End",
+    ground: "Ground z=0",
+    curve: "Curve",
+    points: "points",
+    noCharts: "Charts to be added",
+    plotlyTrajectoryFailed: "Plotly.js failed to load. The trajectory chart cannot be displayed.",
+    plotlyChartFailed: "Plotly.js failed to load. The {title} chart cannot be displayed.",
+    msgNoBus: "{busName} message was not found. Cannot draw {title}.",
+    msgMissingFields: "{busName} is missing fields: {fields}.",
+    msgNotEnoughTrajectory: "{busName}.{fields} does not have enough valid data points.",
+    msgNotEnoughSeries: "{busName}.{field} does not have enough valid data points.",
+    fileFormatVersion: "File Format Version",
+    startTime: "Start Time",
+    endTime: "End Time",
+    duration: "Duration",
+    validStartTime: "Valid Start Time",
+    firmware: "Firmware",
+    airframe: "Airframe",
+    skippedBytes: "Skipped Bytes",
+    none: "-",
+    busFirstSample: "First multi-sample message timestamp",
+    headerTimestamp: "Header timestamp",
+    currentLogNotRecorded: "Not recorded in this log",
+    noMessages: "No message definitions found",
+    noParamGroups: "No parameter groups found",
+    paramCount: "{count} params",
+    disconnected: "Disconnected.",
+    selectFcFirst: "Select a flight-controller serial port first.",
+    connectFcFirst: "Connect to the flight controller first.",
+    selectLogFirst: "Select a log file first.",
+    selectedFcPort: "Flight-controller serial port selected",
+    connectedFc: "Flight controller connected",
+    connectingPath: "Serial connected. Log path: {path}",
+    clickConnectToList: "Click \"Connect FC\" to read the log directory through MAVLink FTP.",
+    clickRefreshToList: "Click \"Refresh Files\" to read the flight-controller log directory.",
+    readingDir: "Reading directory: {path}",
+    readingFileList: "Reading file list...",
+    latestSession: "Current latest folder is session_{id}",
+    latestSessionSuffix: ", current latest folder is session_{id}",
+    readSessionFailedSuffix: ", failed to read session_id: {message}",
+    type: "Type",
+    size: "Size",
+    directory: "Directory",
+    localFile: "File",
+    directoryBuilt: "Directory tree loaded{suffix}",
+    readFailed: "Read failed: {message}",
+    readDirFailed: "Failed to read directory: {message}",
+    downloadingFile: "Transferring {label}{name}",
+    transferCanceled: "Transfer canceled",
+    cancelingTransfer: "Canceling transfer...",
+    transferFailed: "Transfer failed: {message}",
+    readingFromFc: "Reading {name} from flight controller",
+    readAndParsed: "Read and parsed {name}",
+    readFcCanceled: "Flight-controller log read canceled",
+    readFcFailed: "Failed to read flight-controller log: {message}",
+    downloadingFcFiles: "Downloading {count} flight-controller log files",
+    downloadedFcFiles: "Downloaded {count} flight-controller log files",
+    downloadFcCanceled: "Flight-controller log download canceled",
+    downloadFcFailed: "Failed to download flight-controller logs: {message}",
+    parsing: "Parsing",
+    parseDoneCached: "Parsed and cached",
+    restoredCache: "Restored from cache",
+    parseFailed: "Parse failed",
+    parseFailedDetail: "Parse failed: {message}",
+    cacheFailed: "Failed to cache log: {message}",
+    fileCached: "File (cached {time})",
+    fileCachedFrom: "File (cached from {time})",
+    cachedFile: "File (cached)",
+    cacheReadFailed: "Failed to read cache: {message}",
+    cacheCleared: "Cache cleared",
+    cacheClearFailed: "Failed to clear cache: {message}",
+    browserNoSerial: "This browser does not support Web Serial. Use desktop Chrome or Edge.",
+    selectSerialFailed: "Failed to select serial port: {message}",
+    connectionFailed: "Connection failed: {message}",
+    csvExportFailed: "CSV export failed",
+    chartCsvExportFailed: "Failed to export {title} CSV",
+  },
 };
+
+function t(key, values = {}) {
+  const template = translations[currentLanguage]?.[key] ?? translations.zh[key] ?? key;
+  return template.replace(/\{(\w+)\}/gu, (_, name) => values[name] ?? "");
+}
 
 const chartModules = [
   {
@@ -165,6 +440,92 @@ const moduleTimeSeriesCharts = {
   power: powerTimeSeriesCharts,
 };
 
+const englishLabels = {
+  "位姿信息": "Pose",
+  "飞行轨迹与位置姿态数据": "Flight trajectory, position, and attitude data",
+  "输入输出": "Inputs / Outputs",
+  "任务、地面站、摇杆输入与控制输出": "Mission, ground-station, stick input, and control output",
+  "传感器状态": "Sensor Status",
+  "传感器原始数据与工作状态": "Raw sensor data and operating status",
+  "电源状态": "Power Status",
+  "供电与电源消耗数据": "Power supply and consumption data",
+  "高度": "Altitude",
+  "北向位置(Y)": "North Position (Y)",
+  "东向位置(X)": "East Position (X)",
+  "北向速度": "North Velocity",
+  "东向速度": "East Velocity",
+  "地向速度": "Down Velocity",
+  "前向加速度": "Forward Acceleration",
+  "右向加速度": "Right Acceleration",
+  "下向加速度": "Down Acceleration",
+  "滚转角": "Roll Angle",
+  "俯仰角": "Pitch Angle",
+  "偏航角": "Yaw Angle",
+  "滚转角速度": "Roll Rate",
+  "俯仰角速度": "Pitch Rate",
+  "偏航角速度": "Yaw Rate",
+  "摇杆滚转输入": "Stick Roll Input",
+  "摇杆俯仰输入": "Stick Pitch Input",
+  "摇杆偏航输入": "Stick Yaw Input",
+  "摇杆油门输入": "Stick Throttle Input",
+  "飞手模式": "Pilot Mode",
+  "地面站模式": "GCS Mode",
+  "地面站指令1": "GCS Command 1",
+  "地面站指令2": "GCS Command 2",
+  "滚转指令": "Roll Command",
+  "俯仰指令": "Pitch Command",
+  "偏航角速度指令": "Yaw Rate Command",
+  "前向速度指令": "Forward Speed Command",
+  "右向速度指令": "Right Speed Command",
+  "下向速度指令": "Down Speed Command",
+  "油门指令": "Throttle Command",
+  "飞行状态": "Flight State",
+  "控制输出1": "Control Output 1",
+  "控制输出2": "Control Output 2",
+  "控制输出3": "Control Output 3",
+  "控制输出4": "Control Output 4",
+  "陀螺仪X": "Gyroscope X",
+  "陀螺仪Y": "Gyroscope Y",
+  "陀螺仪Z": "Gyroscope Z",
+  "加速度计X": "Accelerometer X",
+  "加速度计Y": "Accelerometer Y",
+  "加速度计Z": "Accelerometer Z",
+  "磁力计X": "Magnetometer X",
+  "磁力计Y": "Magnetometer Y",
+  "磁力计Z": "Magnetometer Z",
+  "气压": "Barometric Pressure",
+  "气压计温度": "Barometer Temperature",
+  "空速差压": "Airspeed Differential Pressure",
+  "空速计温度": "Airspeed Sensor Temperature",
+  "测距仪距离": "Rangefinder Distance",
+  "光流速度X": "Optical Flow Velocity X",
+  "光流速度Y": "Optical Flow Velocity Y",
+  "光流质量": "Optical Flow Quality",
+  "GPS定位类型": "GPS Fix Type",
+  "GPS卫星数": "GPS Satellites",
+  "GPS高度": "GPS Altitude",
+  "GPS水平精度": "GPS Horizontal Accuracy",
+  "GPS垂直精度": "GPS Vertical Accuracy",
+  "GPS北向速度": "GPS North Velocity",
+  "GPS东向速度": "GPS East Velocity",
+  "GPS地向速度": "GPS Down Velocity",
+  "GPS地速": "GPS Ground Speed",
+  "电池电压": "Battery Voltage",
+  "电池电流": "Battery Current",
+  "剩余电量": "Battery Remaining",
+  "电流估算电量": "Current-Based Remaining",
+  "电压估算电量": "Voltage-Based Remaining",
+  "电池健康度": "Battery Health",
+  "单节电压": "Cell Voltage",
+  "原始单节电压": "Raw Cell Voltage",
+  "内阻": "Internal Resistance",
+  "电池连接状态": "Battery Connection",
+};
+
+function label(text) {
+  return currentLanguage === "en" ? englishLabels[text] ?? text : text;
+}
+
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
 let mavlinkFtpClient = null;
@@ -175,12 +536,13 @@ let pendingTransferProgress = null;
 let isDisconnectingFlightController = false;
 let closeAfterParse = false;
 let transferAbortController = null;
+let lastParsedResult = null;
 
 function makeAbortError() {
   if (typeof DOMException === "function") {
-    return new DOMException("传输已取消", "AbortError");
+    return new DOMException(t("transferCanceled"), "AbortError");
   }
-  const error = new Error("传输已取消");
+  const error = new Error(t("transferCanceled"));
   error.name = "AbortError";
   return error;
 }
@@ -216,7 +578,7 @@ function updateSelectionButtons() {
   if (parseSelected) parseSelected.disabled = isFlightTransferActive || n !== 1;
   if (downloadSelected) {
     downloadSelected.disabled = isFlightTransferActive ? false : n === 0;
-    downloadSelected.textContent = isFlightTransferActive ? "取消传输" : "下载到本地";
+    downloadSelected.textContent = isFlightTransferActive ? t("cancelTransfer") : t("downloadLocal");
     downloadSelected.classList.toggle("cancel-transfer", isFlightTransferActive);
   }
 }
@@ -297,7 +659,7 @@ function showSessionHint(sessionId) {
     return;
   }
   flightSessionHint.hidden = false;
-  flightSessionHint.textContent = `当前最新文件夹是 session_${sessionId}`;
+  flightSessionHint.textContent = t("latestSession", { id: sessionId });
 }
 
 function decodeTextFile(buffer) {
@@ -356,7 +718,7 @@ function resetTransferProgress() {
   }
   pendingTransferProgress = null;
   flightTransfer.hidden = true;
-  flightTransferLabel.textContent = "等待传输";
+  flightTransferLabel.textContent = t("waitingTransfer");
   flightTransferStats.textContent = "0%";
   flightTransferProgress.max = 100;
   flightTransferProgress.value = 0;
@@ -376,26 +738,26 @@ async function disconnectFlightController({ updateMainStatus = true } = {}) {
       try {
         await client.close();
       } catch (error) {
-        console.warn(`断开飞控连接失败：${error.message}`);
+        console.warn(currentLanguage === "en" ? `Failed to disconnect from flight controller: ${error.message}` : `断开飞控连接失败：${error.message}`);
       }
     }
 
     if (refreshFlightLogList) refreshFlightLogList.disabled = true;
     if (connectFlightController) {
       connectFlightController.classList.remove("connected");
-      connectFlightController.textContent = "连接飞控";
+      connectFlightController.textContent = t("connectFc");
     }
     if (flightControllerDialogStatus) {
-      flightControllerDialogStatus.textContent = "已断开连接。";
+      flightControllerDialogStatus.textContent = t("disconnected");
     }
     if (flightLogList) {
-      flightLogList.innerHTML = '<div class="empty-state">已断开连接。</div>';
+      flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("disconnected"))}</div>`;
     }
     resetSessionHint();
     selectedFiles.clear();
     updateSelectionButtons();
     if (updateMainStatus) {
-      setStatus("已断开连接");
+      setStatus(t("disconnected"));
     }
   } finally {
     isDisconnectingFlightController = false;
@@ -430,10 +792,10 @@ function finishTransferProgress(label) {
 
 async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownload = false } = {}) {
   if (!mavlinkFtpClient) {
-    throw new Error("请先连接飞控。");
+    throw new Error(t("connectFcFirst"));
   }
   if (files.length === 0) {
-    throw new Error("请先选择日志文件。");
+    throw new Error(t("selectLogFirst"));
   }
 
   const totalBytes = getKnownTotalSize(files);
@@ -452,7 +814,7 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
       const labelPrefix = files.length > 1 ? `(${index + 1}/${files.length}) ` : "";
       const fileTotal = Number.isFinite(file.size) ? file.size : null;
       scheduleTransferProgress(
-        `正在传输 ${labelPrefix}${file.name}`,
+        t("downloadingFile", { label: labelPrefix, name: file.name }),
         completedBytes,
         totalBytes,
         smoothedSpeed,
@@ -475,7 +837,7 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
             displayTotal = total;
           }
           scheduleTransferProgress(
-            `正在传输 ${labelPrefix}${file.name}`,
+            t("downloadingFile", { label: labelPrefix, name: file.name }),
             aggregateLoaded,
             displayTotal,
             smoothedSpeed,
@@ -505,10 +867,27 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
   }
 }
 
+function applyLanguage() {
+  document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-i18n]").forEach((node) => {
+    node.textContent = t(node.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => {
+    node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
+  });
+  languageToggle.textContent = currentLanguage === "zh" ? "EN" : "中文";
+  updateSelectionButtons();
+  if (lastParsedResult) {
+    renderMeta(lastParsedResult);
+    renderBusTable(lastParsedResult);
+    renderParamTable(lastParsedResult);
+    renderCharts(lastParsedResult);
+  }
+}
+
 function toggleLanguage() {
   currentLanguage = currentLanguage === "zh" ? "en" : "zh";
-  mainTitle.textContent = titles[currentLanguage];
-  languageToggle.textContent = currentLanguage === "zh" ? "EN" : "中文";
+  applyLanguage();
 }
 
 function setStatus(text, kind = "") {
@@ -530,7 +909,7 @@ function setFileDisplay(name) {
   fileName.textContent = name;
 }
 
-function setCacheState(labelText = "文件", hasCache = false) {
+function setCacheState(labelText = t("file"), hasCache = false) {
   fileLabel.textContent = labelText;
   clearCacheButton.hidden = !hasCache;
 }
@@ -580,17 +959,17 @@ function formatElapsedSeconds(startMs, endMs) {
 
 function formatTimestampSource(source) {
   if (source === "bus_first_sample") {
-    return "首个多样本消息时间戳";
+    return t("busFirstSample");
   }
   if (source === "header_timestamp") {
-    return "文件头 timestamp";
+    return t("headerTimestamp");
   }
-  return "-";
+  return t("none");
 }
 
 function formatRecordedValue(value) {
   if (value === undefined || value === null || value === "") {
-    return "当前日志未记录";
+    return t("currentLogNotRecorded");
   }
   return String(value);
 }
@@ -609,17 +988,17 @@ function renderMeta(result) {
     ? modelInfoSections.join("\n")
     : result.modelInfo;
   const meta = [
-    ["文件格式版本", result.version],
-    ["起始时间", formatMsValue(result.timestamp)],
-    ["结束时间", formatMsValue(result.maxTimestamp)],
-    ["日志时长", formatElapsedSeconds(result.timestamp, result.maxTimestamp)],
-    ["有效起始时间", formatMsValue(result.globalTimestampStart)],
-    ["描述", result.description],
-    ["模型信息", modelInfoText],
-    ["机架类型", formatRecordedValue(recordedInfo.airframe)],
-    ["参数组", result.paramGroups.length],
-    ["解析警告", result.warnings.length ? result.warnings.join("；") : "-"],
-    ["跳过字节", result.skippedBytes],
+    [t("fileFormatVersion"), result.version],
+    [t("startTime"), formatMsValue(result.timestamp)],
+    [t("endTime"), formatMsValue(result.maxTimestamp)],
+    [t("duration"), formatElapsedSeconds(result.timestamp, result.maxTimestamp)],
+    [t("validStartTime"), formatMsValue(result.globalTimestampStart)],
+    [t("description"), result.description],
+    [t("modelInfo"), modelInfoText],
+    [t("airframe"), formatRecordedValue(recordedInfo.airframe)],
+    [t("paramGroups"), result.paramGroups.length],
+    [t("parseWarnings"), result.warnings.length ? result.warnings.join(currentLanguage === "en" ? "; " : "；") : "-"],
+    [t("skippedBytes"), result.skippedBytes],
   ];
 
   metaList.innerHTML = meta
@@ -629,7 +1008,7 @@ function renderMeta(result) {
 
 function renderBusTable(result) {
   if (result.buses.length === 0) {
-    busTable.innerHTML = '<tr><td colspan="5">未找到消息定义</td></tr>';
+    busTable.innerHTML = `<tr><td colspan="5">${escapeHtml(t("noMessages"))}</td></tr>`;
     return;
   }
 
@@ -650,7 +1029,7 @@ function renderBusTable(result) {
 
 function renderParamTable(result) {
   if (result.paramGroups.length === 0) {
-    paramTable.innerHTML = '<div class="empty-state">未找到参数组</div>';
+    paramTable.innerHTML = `<div class="empty-state">${escapeHtml(t("noParamGroups"))}</div>`;
     return;
   }
 
@@ -660,19 +1039,19 @@ function renderParamTable(result) {
         <details class="param-group">
           <summary>
             <span class="param-group-name">${escapeHtml(group.name || "-")}</span>
-            <span class="param-group-count">${group.params.length} 个参数</span>
+            <span class="param-group-count">${escapeHtml(t("paramCount", { count: group.params.length }))}</span>
           </summary>
           <div class="param-grid" role="table" aria-label="${escapeHtml(group.name || "参数组")}">
             <div class="param-grid-head" role="row">
-              <span role="columnheader">名称</span>
-              <span role="columnheader">值</span>
-              <span role="columnheader">类型</span>
+              <span role="columnheader">${escapeHtml(t("name"))}</span>
+              <span role="columnheader">${escapeHtml(t("value"))}</span>
+              <span role="columnheader">${escapeHtml(t("paramType"))}</span>
             </div>
             ${group.params
               .map(
                 (param) => `
                   <div class="param-grid-row" role="row">
-                    <span role="cell">${escapeHtml(param.name || "(空名称)")}</span>
+                    <span role="cell">${escapeHtml(param.name || `(${t("emptyName")})`)}</span>
                     <span role="cell">${escapeHtml(formatParamValue(param))}</span>
                     <span role="cell">${escapeHtml(param.typeName || `TYPE_${param.type}`)}</span>
                   </div>
@@ -690,7 +1069,7 @@ function collectTrajectoryPoints(result) {
   const bus = result.buses.find((candidate) => candidate.name === trajectoryConfig.busName);
   if (!bus) {
     return {
-      error: `没有找到 ${trajectoryConfig.busName} 消息，无法绘制航迹。`,
+      error: t("msgNoBus", { busName: trajectoryConfig.busName, title: t("trajectory") }),
     };
   }
 
@@ -699,7 +1078,7 @@ function collectTrajectoryPoints(result) {
   );
   if (missingFields.length > 0) {
     return {
-      error: `${trajectoryConfig.busName} 缺少字段：${missingFields.join("、")}。`,
+      error: t("msgMissingFields", { busName: trajectoryConfig.busName, fields: missingFields.join(currentLanguage === "en" ? ", " : "、") }),
     };
   }
 
@@ -717,7 +1096,10 @@ function collectTrajectoryPoints(result) {
 
   if (points.length < 2) {
     return {
-      error: `${trajectoryConfig.busName}.${trajectoryConfig.xField}/${trajectoryConfig.yField}/${trajectoryConfig.zField} 有效数据点不足。`,
+      error: t("msgNotEnoughTrajectory", {
+        busName: trajectoryConfig.busName,
+        fields: `${trajectoryConfig.xField}/${trajectoryConfig.yField}/${trajectoryConfig.zField}`,
+      }),
     };
   }
 
@@ -729,13 +1111,13 @@ function collectTimeSeriesPoints(result, chart) {
   const bus = result.buses.find((candidate) => candidate.name === busName);
   if (!bus) {
     return {
-      error: `没有找到 ${busName} 消息，无法绘制${chart.title}。`,
+      error: t("msgNoBus", { busName, title: label(chart.title) }),
     };
   }
 
   if (!bus.fields.includes(chart.field)) {
     return {
-      error: `${busName} 缺少字段：${chart.field}。`,
+      error: t("msgMissingFields", { busName, fields: chart.field }),
     };
   }
 
@@ -751,7 +1133,7 @@ function collectTimeSeriesPoints(result, chart) {
 
   if (points.length < 2) {
     return {
-      error: `${busName}.${chart.field} 有效数据点不足。`,
+      error: t("msgNotEnoughSeries", { busName, field: chart.field }),
     };
   }
 
@@ -918,7 +1300,7 @@ function createTrajectoryPlotSpec(points, mode) {
         {
           type: "scatter",
           mode: "lines",
-          name: "二维航迹",
+          name: t("twoDTrajectory"),
           x: y,
           y: x,
           customdata: pointMeta,
@@ -930,7 +1312,7 @@ function createTrajectoryPlotSpec(points, mode) {
         {
           type: "scatter",
           mode: "markers",
-          name: "起点/终点",
+          name: t("startEnd"),
           legendgroup: "startend",
           x: [first.y, last.y],
           y: [first.x, last.x],
@@ -946,11 +1328,11 @@ function createTrajectoryPlotSpec(points, mode) {
         {
           type: "scatter",
           mode: "text",
-          name: "起点/终点标签",
+          name: t("startEndLabels"),
           legendgroup: "startend",
           x: [first.y, last.y],
           y: [first.x, last.x],
-          text: ["起点", "终点"],
+          text: [t("start"), t("end")],
           textposition: "top center",
           showlegend: false,
           hoverinfo: "skip",
@@ -1019,7 +1401,7 @@ function createTrajectoryPlotSpec(points, mode) {
       {
         type: "scatter3d",
         mode: "lines",
-        name: "三维航迹",
+        name: t("threeDTrajectory"),
         x,
         y,
         z,
@@ -1032,7 +1414,7 @@ function createTrajectoryPlotSpec(points, mode) {
       {
         type: "scatter3d",
         mode: "markers",
-        name: "起点/终点",
+        name: t("startEnd"),
         legendgroup: "startend",
         x: [first.x, last.x],
         y: [first.y, last.y],
@@ -1049,19 +1431,19 @@ function createTrajectoryPlotSpec(points, mode) {
       {
         type: "scatter3d",
         mode: "text",
-        name: "起点/终点标签",
+        name: t("startEndLabels"),
         legendgroup: "startend",
         x: [first.x, last.x],
         y: [first.y, last.y],
         z: [first.z, last.z],
-        text: ["起点", "终点"],
+        text: [t("start"), t("end")],
         textposition: "top center",
         showlegend: false,
         hoverinfo: "skip",
       },
       {
         type: "mesh3d",
-        name: "地面 z=0",
+        name: t("ground"),
         x: [groundXRange[0], groundXRange[1], groundXRange[1], groundXRange[0]],
         y: [groundYRange[0], groundYRange[0], groundYRange[1], groundYRange[1]],
         z: [0, 0, 0, 0],
@@ -1210,7 +1592,7 @@ function createTimeSeriesPlotSpec(series) {
       {
         type: "scatter",
         mode: "lines",
-        name: chart.title,
+        name: label(chart.title),
         x: time,
         y: values,
         customdata: pointMeta,
@@ -1310,26 +1692,26 @@ function renderTimeSeriesPlotTo(plot, series, interactionMode) {
 function updateTrajectoryControlIcons({ modeButton, interactionButton, resetButton, mode, interactionMode }) {
   if (modeButton) {
     inlineSvgIcon(modeButton, mode === "3d" ? "2d" : "3d");
-    modeButton.title = mode === "3d" ? "切换二维" : "切换三维";
+    modeButton.title = mode === "3d" ? t("switchTo2D") : t("switchTo3D");
   }
   if (interactionButton) {
     inlineSvgIcon(interactionButton, interactionMode === "pan" ? "zoom" : "pan");
-    interactionButton.title = interactionMode === "pan" ? "切换到缩放" : "切换到平移";
+    interactionButton.title = interactionMode === "pan" ? t("switchToZoom") : t("switchToPan");
   }
   if (resetButton) {
     inlineSvgIcon(resetButton, "reset");
-    resetButton.title = "复位视图";
+    resetButton.title = t("resetView");
   }
 }
 
 function update2DControlIcons({ interactionButton, resetButton, interactionMode }) {
   if (interactionButton) {
     inlineSvgIcon(interactionButton, interactionMode === "pan" ? "zoom" : "pan");
-    interactionButton.title = interactionMode === "pan" ? "切换到缩放" : "切换到平移";
+    interactionButton.title = interactionMode === "pan" ? t("switchToZoom") : t("switchToPan");
   }
   if (resetButton) {
     inlineSvgIcon(resetButton, "reset");
-    resetButton.title = "复位视图";
+    resetButton.title = t("resetView");
   }
 }
 
@@ -1341,7 +1723,7 @@ function openTrajectoryDialog(points, initialMode, initialInteractionMode) {
   let dialogMode = initialMode;
   let dialogInteractionMode = initialInteractionMode;
   if (chartDialogTitle) {
-    chartDialogTitle.textContent = "航迹";
+    chartDialogTitle.textContent = t("trajectory");
   }
   if (chartDialogMode) {
     chartDialogMode.hidden = false;
@@ -1388,7 +1770,7 @@ function openTimeSeriesDialog(series, initialInteractionMode) {
 
   let dialogInteractionMode = initialInteractionMode;
   if (chartDialogTitle) {
-    chartDialogTitle.textContent = series.chart.title;
+    chartDialogTitle.textContent = label(series.chart.title);
   }
   if (chartDialogMode) {
     chartDialogMode.hidden = true;
@@ -1435,7 +1817,7 @@ function renderTrajectoryPlot(points) {
   }
 
   if (!window.Plotly) {
-    plot.innerHTML = '<div class="chart-module-empty">Plotly.js 加载失败，无法显示航迹图。</div>';
+    plot.innerHTML = `<div class="chart-module-empty">${escapeHtml(t("plotlyTrajectoryFailed"))}</div>`;
     return;
   }
 
@@ -1448,21 +1830,21 @@ function renderTrajectoryPlot(points) {
     updateTrajectoryControlIcons({ modeButton, interactionButton, resetButton, mode, interactionMode });
     if (expandButton) {
       inlineSvgIcon(expandButton, 'full');
-      expandButton.title = '展开图片';
+      expandButton.title = t("expandImage");
     }
     if (downloadButton) {
       inlineSvgIcon(downloadButton, 'download');
-      downloadButton.title = '下载图片';
+      downloadButton.title = t("downloadImage");
     }
     if (downloadCsvButton) {
       inlineSvgIcon(downloadCsvButton, 'csv');
-      downloadCsvButton.title = '下载数据 CSV';
+      downloadCsvButton.title = t("downloadCsv");
     }
     if (subtitle) {
       subtitle.textContent =
         mode === "3d"
-          ? `三维航迹 · INS_Out.x_R / y_R / h_R · ${points.length} 点`
-          : `二维航迹 · INS_Out.x_R / y_R · ${points.length} 点`;
+          ? `${t("threeDTrajectory")} · INS_Out.x_R / y_R / h_R · ${points.length} ${t("points")}`
+          : `${t("twoDTrajectory")} · INS_Out.x_R / y_R · ${points.length} ${t("points")}`;
     }
   };
 
@@ -1483,7 +1865,7 @@ function renderTrajectoryPlot(points) {
       if (interactionButton) {
         // inline so CSS `color` applies even when not modifying the SVG files
         inlineSvgIcon(interactionButton, name);
-        interactionButton.title = interactionMode === 'pan' ? '切换到缩放' : '切换到平移';
+        interactionButton.title = interactionMode === 'pan' ? t("switchToZoom") : t("switchToPan");
       }
     } catch (e) {}
   });
@@ -1518,7 +1900,7 @@ function renderTrajectoryPlot(points) {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
-      console.warn('导出 CSV 失败', e);
+      console.warn(t("csvExportFailed"), e);
     }
   });
 
@@ -1538,7 +1920,7 @@ function renderTimeSeriesPlot(series) {
   }
 
   if (!window.Plotly) {
-    plot.innerHTML = `<div class="chart-module-empty">Plotly.js 加载失败，无法显示${escapeHtml(chart.title)}图。</div>`;
+    plot.innerHTML = `<div class="chart-module-empty">${escapeHtml(t("plotlyChartFailed", { title: label(chart.title) }))}</div>`;
     return;
   }
 
@@ -1549,15 +1931,15 @@ function renderTimeSeriesPlot(series) {
     update2DControlIcons({ interactionButton, resetButton, interactionMode });
     if (expandButton) {
       inlineSvgIcon(expandButton, "full");
-      expandButton.title = "展开图片";
+      expandButton.title = t("expandImage");
     }
     if (downloadButton) {
       inlineSvgIcon(downloadButton, "download");
-      downloadButton.title = "下载图片";
+      downloadButton.title = t("downloadImage");
     }
     if (downloadCsvButton) {
       inlineSvgIcon(downloadCsvButton, "csv");
-      downloadCsvButton.title = "下载数据 CSV";
+      downloadCsvButton.title = t("downloadCsv");
     }
   };
 
@@ -1597,7 +1979,7 @@ function renderTimeSeriesPlot(series) {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
-      console.warn(`导出${chart.title} CSV 失败`, error);
+      console.warn(t("chartCsvExportFailed", { title: label(chart.title) }), error);
     }
   });
 
@@ -1684,18 +2066,18 @@ function renderTrajectoryFigure(trajectory) {
     <article class="chart-figure">
       <div class="chart-figure-main">
         <div class="chart-title">
-          <span>航迹</span>
-          <small id="trajectorySubtitle">三维航迹 · INS_Out.x_R / y_R / h_R · ${trajectory.points.length} 点</small>
+          <span>${escapeHtml(t("trajectory"))}</span>
+          <small id="trajectorySubtitle">${escapeHtml(t("threeDTrajectory"))} · INS_Out.x_R / y_R / h_R · ${trajectory.points.length} ${escapeHtml(t("points"))}</small>
         </div>
-        <div class="plotly-chart" id="trajectoryPlot" aria-label="INS_Out 可切换二维三维航迹图"></div>
+        <div class="plotly-chart" id="trajectoryPlot" aria-label="INS_Out ${escapeHtml(t("toggle2d3d"))} ${escapeHtml(t("trajectory"))}"></div>
       </div>
-      <div class="chart-actions" aria-label="航迹图操作">
-        <button class="icon-button" type="button" data-chart-action="toggle-trajectory-mode" aria-label="切换 2D/3D"></button>
-        <button class="icon-button" type="button" data-chart-action="toggle-interaction-mode" aria-label="切换 平移/缩放"></button>
-        <button class="icon-button" type="button" data-chart-action="reset-trajectory-view" aria-label="复位视图"></button>
-        <button class="icon-button" type="button" data-chart-action="open-chart-dialog" aria-label="展开"></button>
-        <button class="icon-button" type="button" data-chart-action="download-trajectory-image" aria-label="下载图片"></button>
-        <button class="icon-button" type="button" data-chart-action="download-trajectory-csv" aria-label="下载 CSV"></button>
+      <div class="chart-actions" aria-label="${escapeHtml(t("trajectory"))}${escapeHtml(t("dialogTrajectoryActions"))}">
+        <button class="icon-button" type="button" data-chart-action="toggle-trajectory-mode" aria-label="${escapeHtml(t("toggle2d3d"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="toggle-interaction-mode" aria-label="${escapeHtml(t("togglePanZoom"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="reset-trajectory-view" aria-label="${escapeHtml(t("resetView"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="open-chart-dialog" aria-label="${escapeHtml(t("expandImage"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="download-trajectory-image" aria-label="${escapeHtml(t("downloadImage"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="download-trajectory-csv" aria-label="${escapeHtml(t("downloadCsv"))}"></button>
       </div>
     </article>
   `;
@@ -1712,17 +2094,17 @@ function renderTimeSeriesFigure(series) {
     <article class="chart-figure">
       <div class="chart-figure-main">
         <div class="chart-title">
-          <span>${escapeHtml(chart.title)}</span>
-          <small>曲线 · ${escapeHtml(sourceLabel)} · ${points.length} 点</small>
+          <span>${escapeHtml(label(chart.title))}</span>
+          <small>${escapeHtml(t("curve"))} · ${escapeHtml(sourceLabel)} · ${points.length} ${escapeHtml(t("points"))}</small>
         </div>
-        <div class="plotly-chart plotly-chart-compact" id="${escapeHtml(chart.id)}Plot" aria-label="${escapeHtml(sourceLabel)} ${escapeHtml(chart.title)}曲线"></div>
+        <div class="plotly-chart plotly-chart-compact" id="${escapeHtml(chart.id)}Plot" aria-label="${escapeHtml(sourceLabel)} ${escapeHtml(label(chart.title))} ${escapeHtml(t("curve"))}"></div>
       </div>
-      <div class="chart-actions" aria-label="${escapeHtml(chart.title)}图操作">
-        <button class="icon-button" type="button" data-chart-action="toggle-${escapeHtml(chart.id)}-interaction" aria-label="切换 平移/缩放"></button>
-        <button class="icon-button" type="button" data-chart-action="reset-${escapeHtml(chart.id)}-view" aria-label="复位视图"></button>
-        <button class="icon-button" type="button" data-chart-action="open-${escapeHtml(chart.id)}-dialog" aria-label="展开"></button>
-        <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-image" aria-label="下载图片"></button>
-        <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-csv" aria-label="下载 CSV"></button>
+      <div class="chart-actions" aria-label="${escapeHtml(label(chart.title))} ${escapeHtml(t("dialogTrajectoryActions"))}">
+        <button class="icon-button" type="button" data-chart-action="toggle-${escapeHtml(chart.id)}-interaction" aria-label="${escapeHtml(t("togglePanZoom"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="reset-${escapeHtml(chart.id)}-view" aria-label="${escapeHtml(t("resetView"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="open-${escapeHtml(chart.id)}-dialog" aria-label="${escapeHtml(t("expandImage"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-image" aria-label="${escapeHtml(t("downloadImage"))}"></button>
+        <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-csv" aria-label="${escapeHtml(t("downloadCsv"))}"></button>
       </div>
     </article>
   `;
@@ -1735,7 +2117,7 @@ function renderModuleContent(module, trajectory, moduleTimeSeries) {
   }
 
   if (timeSeries.length === 0) {
-    return '<div class="chart-module-empty">图表待添加</div>';
+    return `<div class="chart-module-empty">${escapeHtml(t("noCharts"))}</div>`;
   }
 
   return timeSeries.map(renderTimeSeriesFigure).join("");
@@ -1782,12 +2164,12 @@ function renderCharts(result) {
   chartGrid.innerHTML = chartModules
     .map(
       (module) => `
-        <section class="chart-module is-collapsed" aria-label="${escapeHtml(module.title)}">
+        <section class="chart-module is-collapsed" aria-label="${escapeHtml(label(module.title))}">
           <button class="chart-module-header chart-module-toggle" type="button" aria-expanded="false">
             <span class="chart-module-chevron" aria-hidden="true"></span>
             <div>
-              <h3>${escapeHtml(module.title)}</h3>
-              <p>${escapeHtml(module.description)}</p>
+              <h3>${escapeHtml(label(module.title))}</h3>
+              <p>${escapeHtml(label(module.description))}</p>
             </div>
           </button>
           <div class="chart-stack" hidden>
@@ -1814,13 +2196,14 @@ function renderCharts(result) {
 
 async function parseAndRender(buffer, displayName, cacheMeta = null) {
   setFileDisplay(displayName);
-  setCacheState("文件", false);
+  setCacheState(t("file"), false);
   busCount.textContent = "-";
   frameCount.textContent = "-";
-  setStatus("解析中");
+  setStatus(t("parsing"));
 
   try {
     const result = parseMlog(buffer);
+    lastParsedResult = result;
     let hasCache = false;
     let cacheText = "";
 
@@ -1831,15 +2214,15 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
           buffer,
         });
         hasCache = true;
-        cacheText = `文件（已缓存 ${formatCacheTime(Date.now())}）`;
+        cacheText = t("fileCached", { time: formatCacheTime(Date.now()) });
       } catch (error) {
-        result.warnings.push(`日志缓存失败：${error.message}`);
+        result.warnings.push(t("cacheFailed", { message: error.message }));
       }
     }
 
     busCount.textContent = result.buses.length;
     frameCount.textContent = result.totalFrames;
-    setStatus(cacheMeta ? "解析完成，已缓存" : "已从缓存恢复", "ok");
+    setStatus(cacheMeta ? t("parseDoneCached") : t("restoredCache"), "ok");
     setCacheState(cacheText, hasCache);
 
     renderMeta(result);
@@ -1847,8 +2230,9 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
     renderParamTable(result);
     renderCharts(result);
   } catch (error) {
-    setStatus("解析失败", "error");
-    chartGrid.innerHTML = `<div class="empty-state">解析失败：${escapeHtml(error.message)}</div>`;
+    lastParsedResult = null;
+    setStatus(t("parseFailed"), "error");
+    chartGrid.innerHTML = `<div class="empty-state">${escapeHtml(t("parseFailedDetail", { message: error.message }))}</div>`;
   }
 }
 
@@ -1866,25 +2250,25 @@ async function restoreCachedLog() {
   try {
     const cached = await loadLastLog();
     if (!cached) {
-      setCacheState("文件", false);
+      setCacheState(t("file"), false);
       return;
     }
 
     const savedTime = cached.savedAt ? formatCacheTime(cached.savedAt) : "";
     await parseAndRender(cached.buffer, cached.name);
-    setCacheState(savedTime ? `文件（缓存自 ${savedTime}）` : "文件（缓存）", true);
+    setCacheState(savedTime ? t("fileCachedFrom", { time: savedTime }) : t("cachedFile"), true);
   } catch (error) {
-    setStatus(`读取缓存失败：${error.message}`, "error");
+    setStatus(t("cacheReadFailed", { message: error.message }), "error");
   }
 }
 
 clearCacheButton.addEventListener("click", async () => {
   try {
     await clearLastLog();
-    setCacheState("文件", false);
-    setStatus("缓存已清除");
+    setCacheState(t("file"), false);
+    setStatus(t("cacheCleared"));
   } catch (error) {
-    setStatus(`清除缓存失败：${error.message}`, "error");
+    setStatus(t("cacheClearFailed", { message: error.message }), "error");
   }
 });
 
@@ -1914,10 +2298,11 @@ dropZone.addEventListener("drop", (event) => {
 });
 
 languageToggle.addEventListener("click", toggleLanguage);
+applyLanguage();
 
 flightControllerImport.addEventListener("click", async () => {
   if (!("serial" in navigator)) {
-    setStatus("当前浏览器不支持 Web Serial，请使用桌面版 Chrome 或 Edge", "error");
+    setStatus(t("browserNoSerial"), "error");
     return;
   }
 
@@ -1925,14 +2310,14 @@ flightControllerImport.addEventListener("click", async () => {
     selectedFlightControllerPort = await navigator.serial.requestPort();
     resetTransferProgress();
     resetSessionHint();
-    flightControllerDialogStatus.textContent = "串口已授权，等待连接。";
-    flightLogList.innerHTML = '<div class="empty-state">点击“连接飞控”后，将通过 MAVLink FTP 读取日志目录。</div>';
+    flightControllerDialogStatus.textContent = t("serialReady");
+    flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("clickConnectToList"))}</div>`;
     refreshFlightLogList.disabled = true;
     flightControllerDialog.showModal();
-    setStatus("已选择飞控串口", "ok");
+    setStatus(t("selectedFcPort"), "ok");
   } catch (error) {
     if (error.name !== "NotFoundError") {
-      setStatus(`选择串口失败：${error.message}`, "error");
+      setStatus(t("selectSerialFailed", { message: error.message }), "error");
     }
   }
 });
@@ -1959,7 +2344,7 @@ flightControllerDialog.addEventListener("close", () => {
 
 connectFlightController.addEventListener("click", async () => {
   if (!selectedFlightControllerPort) {
-    flightControllerDialogStatus.textContent = "请先选择飞控串口。";
+    flightControllerDialogStatus.textContent = t("selectFcFirst");
     return;
   }
 
@@ -1977,24 +2362,24 @@ connectFlightController.addEventListener("click", async () => {
     console.log('app.js: mavlinkFtpClient.open returned');
     refreshFlightLogList.disabled = false;
     connectFlightController.classList.add("connected");
-    connectFlightController.textContent = "断开连接";
-    flightControllerDialogStatus.textContent = `串口已连接，日志路径：${remoteLogPath.value}`;
-    flightLogList.innerHTML = '<div class="empty-state">点击“刷新文件列表”读取飞控日志目录。</div>';
-    setStatus("飞控已连接", "ok");
+    connectFlightController.textContent = t("disconnectFc");
+    flightControllerDialogStatus.textContent = t("connectingPath", { path: remoteLogPath.value });
+    flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("clickRefreshToList"))}</div>`;
+    setStatus(t("connectedFc"), "ok");
   } catch (error) {
-    flightControllerDialogStatus.textContent = `连接失败：${error.message}`;
+    flightControllerDialogStatus.textContent = t("connectionFailed", { message: error.message });
   }
 });
 
 refreshFlightLogList.addEventListener("click", async () => {
   if (!mavlinkFtpClient) {
-    flightControllerDialogStatus.textContent = "请先连接飞控。";
+    flightControllerDialogStatus.textContent = t("connectFcFirst");
     return;
   }
 
   refreshFlightLogList.disabled = true;
-  flightControllerDialogStatus.textContent = `正在读取目录：${remoteLogPath.value}`;
-  flightLogList.innerHTML = '<div class="empty-state">正在读取文件列表...</div>';
+  flightControllerDialogStatus.textContent = t("readingDir", { path: remoteLogPath.value });
+  flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("readingFileList"))}</div>`;
   resetTransferProgress();
   resetSessionHint();
 
@@ -2014,11 +2399,11 @@ refreshFlightLogList.addEventListener("click", async () => {
         const sessionBuffer = await mavlinkFtpClient.readFile(sessionPath, { size: sessionEntry.size });
         const sessionId = decodeTextFile(sessionBuffer);
         if (sessionId) {
-          sessionLabel = `，当前最新文件夹是 session_${sessionId}`;
+          sessionLabel = t("latestSessionSuffix", { id: sessionId });
           showSessionHint(sessionId);
         }
       } catch (error) {
-        sessionLabel = `，读取 session_id 失败：${error.message}`;
+        sessionLabel = t("readSessionFailedSuffix", { message: error.message });
       }
     }
 
@@ -2045,7 +2430,7 @@ refreshFlightLogList.addEventListener("click", async () => {
       const table = document.createElement('table');
       table.className = 'flight-log-table';
       const thead = document.createElement('thead');
-      thead.innerHTML = `<tr><th style="width:80px">类型</th><th class="name-header">名称</th><th style="width:120px">大小</th></tr>`;
+      thead.innerHTML = `<tr><th style="width:80px">${escapeHtml(t("type"))}</th><th class="name-header">${escapeHtml(t("name"))}</th><th style="width:120px">${escapeHtml(t("size"))}</th></tr>`;
       const tbody = document.createElement('tbody');
 
       let idCounter = 1;
@@ -2119,7 +2504,7 @@ refreshFlightLogList.addEventListener("click", async () => {
           }
 
           const tdType = document.createElement('td');
-          tdType.textContent = node.type === 'D' ? '目录' : '文件';
+          tdType.textContent = node.type === 'D' ? t("directory") : t("localFile");
 
           const tdName = document.createElement('td');
           tdName.className = 'name-cell';
@@ -2222,10 +2607,10 @@ refreshFlightLogList.addEventListener("click", async () => {
     }
 
     renderTable(tree, flightLogList);
-    flightControllerDialogStatus.textContent = `已读取并构建目录树${sessionLabel}`;
+    flightControllerDialogStatus.textContent = t("directoryBuilt", { suffix: sessionLabel });
   } catch (error) {
-    flightLogList.innerHTML = `<div class="empty-state">读取失败：${escapeHtml(error.message)}</div>`;
-    flightControllerDialogStatus.textContent = `读取目录失败：${error.message}`;
+    flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("readFailed", { message: error.message }))}</div>`;
+    flightControllerDialogStatus.textContent = t("readDirFailed", { message: error.message });
   } finally {
     refreshFlightLogList.disabled = false;
   }
@@ -2240,19 +2625,19 @@ if (parseSelected) {
     const files = getSelectedRemoteFiles();
     if (files.length !== 1) return;
     try {
-      setStatus(`正在从飞控读取 ${files[0].name}`);
+      setStatus(t("readingFromFc", { name: files[0].name }));
       await downloadRemoteFiles(files, { parseAfterDownload: true });
-      finishTransferProgress(`已读取并解析 ${files[0].name}`);
+      finishTransferProgress(t("readAndParsed", { name: files[0].name }));
       closeAfterParse = true;
       flightControllerDialog.close();
     } catch (error) {
       if (isAbortError(error)) {
-        showStoppedTransferProgress("传输已取消");
-        setStatus("读取飞控日志已取消");
+        showStoppedTransferProgress(t("transferCanceled"));
+        setStatus(t("readFcCanceled"));
         return;
       }
-      showTransferProgress(`传输失败：${error.message}`);
-      setStatus(`读取飞控日志失败：${error.message}`, "error");
+      showTransferProgress(t("transferFailed", { message: error.message }));
+      setStatus(t("readFcFailed", { message: error.message }), "error");
     }
   });
 }
@@ -2261,24 +2646,24 @@ if (downloadSelected) {
   downloadSelected.addEventListener('click', async () => {
     if (isFlightTransferActive) {
       transferAbortController?.abort(makeAbortError());
-      showStoppedTransferProgress("正在取消传输...");
+      showStoppedTransferProgress(t("cancelingTransfer"));
       return;
     }
     if (selectedFiles.size === 0 || isFlightTransferActive) return;
     const files = getSelectedRemoteFiles();
     try {
-      setStatus(`正在下载 ${files.length} 个飞控日志文件`);
+      setStatus(t("downloadingFcFiles", { count: files.length }));
       await downloadRemoteFiles(files, { saveToDisk: true });
-      finishTransferProgress(`已下载 ${files.length} 个文件`);
-      setStatus(`已下载 ${files.length} 个飞控日志文件`, "ok");
+      finishTransferProgress(t("downloadedFcFiles", { count: files.length }));
+      setStatus(t("downloadedFcFiles", { count: files.length }), "ok");
     } catch (error) {
       if (isAbortError(error)) {
-        showStoppedTransferProgress("传输已取消");
-        setStatus("下载飞控日志已取消");
+        showStoppedTransferProgress(t("transferCanceled"));
+        setStatus(t("downloadFcCanceled"));
         return;
       }
-      showTransferProgress(`传输失败：${error.message}`);
-      setStatus(`下载飞控日志失败：${error.message}`, "error");
+      showTransferProgress(t("transferFailed", { message: error.message }));
+      setStatus(t("downloadFcFailed", { message: error.message }), "error");
     }
   });
 }

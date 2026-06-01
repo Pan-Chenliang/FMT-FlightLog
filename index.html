@@ -12,8 +12,8 @@
         <div>
           <button class="header-language-button" id="languageToggle" type="button">EN</button>
           <p class="eyebrow">FMT FlightLog</p>
-          <h1 id="mainTitle">FMT MLog 日志在线解析工具</h1>
-          <p class="summary">上传mlog日志文件，页面会在本地浏览器内解析消息帧、绘制曲线并提供下载。</p>
+          <h1 id="mainTitle" data-i18n="mainTitle">FMT MLog 日志在线解析工具</h1>
+          <p class="summary" data-i18n="summary">上传mlog日志文件，页面会在本地浏览器内解析消息帧、绘制曲线并提供下载。</p>
           <nav class="resource-links" aria-label="FMT resources">
             <a href="https://docs.sieon.net/fmt/#/" target="_blank" rel="noreferrer">FMT User Guide</a>
             <a href="https://github.com/Firmament-Autopilot/FMT-Firmware" target="_blank" rel="noreferrer">FMT Firmware</a>
@@ -23,38 +23,38 @@
 
         <div class="file-source-grid">
           <button class="import-zone" id="flightControllerImport" type="button">
-            <span class="drop-title">从飞控导入日志文件</span>
-            <span class="drop-hint">通过浏览器连接飞控串口，直接下载并解析日志。</span>
+            <span class="drop-title" data-i18n="importFromFc">从飞控导入日志文件</span>
+            <span class="drop-hint" data-i18n="importFromFcHint">通过浏览器连接飞控串口，直接下载并解析日志。</span>
           </button>
 
           <label class="drop-zone" for="fileInput" id="dropZone">
             <input id="fileInput" type="file" />
-            <span class="drop-title">选择或拖入本地文件</span>
-            <span class="drop-hint">所有计算都在浏览器运行，文件不会上传服务器。</span>
+            <span class="drop-title" data-i18n="selectLocalFile">选择或拖入本地文件</span>
+            <span class="drop-hint" data-i18n="selectLocalFileHint">所有计算都在浏览器运行，文件不会上传服务器。</span>
           </label>
         </div>
       </section>
 
       <section class="status-panel" id="statusPanel">
         <div class="status-card">
-          <span class="status-label">状态</span>
-          <strong id="statusText">等待上传</strong>
+          <span class="status-label" data-i18n="status">状态</span>
+          <strong id="statusText" data-i18n="waitingUpload">等待上传</strong>
         </div>
         <div class="status-card status-card-file">
           <div class="status-card-body">
-            <span class="status-label" id="fileLabel">文件</span>
+            <span class="status-label" id="fileLabel" data-i18n="file">文件</span>
             <div class="status-card-main">
               <strong id="fileName">-</strong>
-              <button class="subtle-button" id="clearCacheButton" type="button" hidden>清除缓存</button>
+              <button class="subtle-button" id="clearCacheButton" type="button" hidden data-i18n="clearCache">清除缓存</button>
             </div>
           </div>
         </div>
         <div class="status-card">
-          <span class="status-label">消息数量</span>
+          <span class="status-label" data-i18n="messageCount">消息数量</span>
           <strong id="busCount">-</strong>
         </div>
         <div class="status-card">
-          <span class="status-label">解析帧数</span>
+          <span class="status-label" data-i18n="parsedFrames">解析帧数</span>
           <strong id="frameCount">-</strong>
         </div>
       </section>
@@ -62,18 +62,18 @@
       <section class="content-grid">
         <article class="panel">
           <div class="panel-header">
-            <h2>日志摘要</h2>
+            <h2 data-i18n="logSummary">日志摘要</h2>
           </div>
           <dl class="meta-list" id="metaList">
-            <div><dt>描述</dt><dd>-</dd></div>
-            <div><dt>模型信息</dt><dd>-</dd></div>
-            <div><dt>解析警告</dt><dd>-</dd></div>
+            <div><dt data-i18n="description">描述</dt><dd>-</dd></div>
+            <div><dt data-i18n="modelInfo">模型信息</dt><dd>-</dd></div>
+            <div><dt data-i18n="parseWarnings">解析警告</dt><dd>-</dd></div>
           </dl>
         </article>
 
         <article class="panel">
           <div class="panel-header">
-            <h2>消息列表</h2>
+            <h2 data-i18n="messageList">消息列表</h2>
           </div>
           <div class="table-wrap">
             <table class="bus-table">
@@ -87,14 +87,14 @@
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>名称</th>
-                  <th>字段数</th>
-                  <th>单帧数据</th>
-                  <th>帧数</th>
+                  <th data-i18n="name">名称</th>
+                  <th data-i18n="fieldCount">字段数</th>
+                  <th data-i18n="payloadPerFrame">单帧数据</th>
+                  <th data-i18n="frames">帧数</th>
                 </tr>
               </thead>
               <tbody id="busTable">
-                <tr><td colspan="5">等待上传文件</td></tr>
+                <tr><td colspan="5" data-i18n="waitingFile">等待上传文件</td></tr>
               </tbody>
             </table>
           </div>
@@ -103,19 +103,19 @@
 
       <section class="panel">
         <div class="panel-header">
-          <h2>参数组</h2>
+          <h2 data-i18n="paramGroups">参数组</h2>
         </div>
         <div class="param-groups" id="paramTable">
-          <div class="empty-state">等待上传文件</div>
+          <div class="empty-state" data-i18n="waitingFile">等待上传文件</div>
         </div>
       </section>
 
       <section class="panel">
         <div class="panel-header">
-          <h2>数据图表</h2>
+          <h2 data-i18n="dataCharts">数据图表</h2>
         </div>
         <div class="chart-grid" id="chartGrid">
-          <div class="empty-state">上传并解析日志后，将在这里配置和显示数据图表。</div>
+          <div class="empty-state" data-i18n="chartsPlaceholder">上传并解析日志后，将在这里配置和显示数据图表。</div>
         </div>
       </section>
     </main>
@@ -125,14 +125,14 @@
         <div class="fc-dialog-header">
           <div>
             <p class="eyebrow">MAVLink FTP</p>
-            <h2>从飞控导入日志文件</h2>
+            <h2 data-i18n="importFromFc">从飞控导入日志文件</h2>
           </div>
-          <button class="icon-button" id="closeFlightControllerDialog" type="button" aria-label="关闭">×</button>
+          <button class="icon-button" id="closeFlightControllerDialog" type="button" aria-label="关闭" data-i18n-aria-label="close">×</button>
         </div>
 
         <div class="fc-controls">
           <label>
-            <span>波特率</span>
+            <span data-i18n="baudRate">波特率</span>
             <select id="baudRateSelect">
               <option value="19200">19200</option>
               <option value="38400">38400</option>
@@ -142,22 +142,22 @@
             </select>
           </label>
           <label>
-            <span>日志路径</span>
+            <span data-i18n="logPath">日志路径</span>
             <input id="remoteLogPath" type="text" value="/log/" />
           </label>
         </div>
 
         <div class="fc-actions">
-          <button id="connectFlightController" type="button">连接飞控</button>
+          <button id="connectFlightController" type="button" data-i18n="connectFc">连接飞控</button>
           <div class="fc-action-group">
-            <button id="refreshFlightLogList" type="button" disabled>刷新文件列表</button>
-            <button id="parseSelected" type="button" disabled>解析日志</button>
-            <button id="downloadSelected" type="button" disabled>下载到本地</button>
+            <button id="refreshFlightLogList" type="button" disabled data-i18n="refreshFileList">刷新文件列表</button>
+            <button id="parseSelected" type="button" disabled data-i18n="parseLog">解析日志</button>
+            <button id="downloadSelected" type="button" disabled data-i18n="downloadLocal">下载到本地</button>
           </div>
         </div>
         <div class="fc-transfer" id="flightTransfer" hidden>
           <div class="fc-transfer-row">
-            <span id="flightTransferLabel">等待传输</span>
+            <span id="flightTransferLabel" data-i18n="waitingTransfer">等待传输</span>
             <strong id="flightTransferStats">0%</strong>
           </div>
           <progress id="flightTransferProgress" value="0" max="100"></progress>
@@ -165,10 +165,10 @@
         <div class="fc-session-hint" id="flightSessionHint" hidden></div>
 
         <div class="fc-file-list" id="flightLogList">
-          <div class="empty-state">选择串口后，先连接飞控；随后将通过 MAVLink FTP 列出日志文件。</div>
+          <div class="empty-state" data-i18n="fcListPlaceholder">选择串口后，先连接飞控；随后将通过 MAVLink FTP 列出日志文件。</div>
         </div>
 
-        <p class="fc-dialog-note" id="flightControllerDialogStatus">串口已授权，等待连接。</p>
+        <p class="fc-dialog-note" id="flightControllerDialogStatus" data-i18n="serialReady">串口已授权，等待连接。</p>
       </form>
     </dialog>
 
@@ -176,18 +176,18 @@
       <form method="dialog" class="chart-dialog-panel">
         <div class="fc-dialog-header">
           <div>
-            <p class="eyebrow">数据图表</p>
-            <h2 id="chartDialogTitle">航迹</h2>
+            <p class="eyebrow" data-i18n="dataCharts">数据图表</p>
+            <h2 id="chartDialogTitle" data-i18n="trajectory">航迹</h2>
           </div>
-          <button class="icon-button" id="closeChartDialog" type="button" aria-label="关闭">×</button>
+          <button class="icon-button" id="closeChartDialog" type="button" aria-label="关闭" data-i18n-aria-label="close">×</button>
         </div>
 
         <div class="chart-dialog-body">
-          <div class="chart-dialog-plot" id="chartDialogPlot" aria-label="弹窗航迹图"></div>
-          <div class="chart-dialog-actions" aria-label="弹窗航迹图操作">
-            <button class="icon-button" id="chartDialogMode" type="button" aria-label="切换二维三维"></button>
-            <button class="icon-button" id="chartDialogInteraction" type="button" aria-label="切换平移缩放"></button>
-            <button class="icon-button" id="chartDialogReset" type="button" aria-label="复位视图"></button>
+          <div class="chart-dialog-plot" id="chartDialogPlot" aria-label="弹窗航迹图" data-i18n-aria-label="dialogTrajectoryPlot"></div>
+          <div class="chart-dialog-actions" aria-label="弹窗航迹图操作" data-i18n-aria-label="dialogTrajectoryActions">
+            <button class="icon-button" id="chartDialogMode" type="button" aria-label="切换二维三维" data-i18n-aria-label="toggle2d3d"></button>
+            <button class="icon-button" id="chartDialogInteraction" type="button" aria-label="切换平移缩放" data-i18n-aria-label="togglePanZoom"></button>
+            <button class="icon-button" id="chartDialogReset" type="button" aria-label="复位视图" data-i18n-aria-label="resetView"></button>
           </div>
         </div>
       </form>
