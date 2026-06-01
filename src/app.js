@@ -75,6 +75,24 @@ const trajectoryConfig = {
   zField: "h_R",
 };
 
+const poseTimeSeriesCharts = [
+  { id: "altitude", title: "高度", field: "h_R", unit: "m" },
+  { id: "north-position", title: "北向位置(Y)", field: "y_R", unit: "m" },
+  { id: "east-position", title: "东向位置(X)", field: "x_R", unit: "m" },
+  { id: "north-velocity", title: "北向速度", field: "vn", unit: "m/s" },
+  { id: "east-velocity", title: "东向速度", field: "ve", unit: "m/s" },
+  { id: "down-velocity", title: "地向速度", field: "vd", unit: "m/s" },
+  { id: "forward-accel", title: "前向加速度", field: "ax", unit: "m/s²" },
+  { id: "right-accel", title: "右向加速度", field: "ay", unit: "m/s²" },
+  { id: "down-accel", title: "下向加速度", field: "az", unit: "m/s²" },
+  { id: "roll", title: "滚转角", field: "phi", unit: "rad" },
+  { id: "pitch", title: "俯仰角", field: "theta", unit: "rad" },
+  { id: "yaw", title: "偏航角", field: "psi", unit: "rad" },
+  { id: "roll-rate", title: "滚转角速度", field: "p", unit: "rad/s" },
+  { id: "pitch-rate", title: "俯仰角速度", field: "q", unit: "rad/s" },
+  { id: "yaw-rate", title: "偏航角速度", field: "r", unit: "rad/s" },
+];
+
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
 let mavlinkFtpClient = null;
@@ -630,17 +648,17 @@ function collectTrajectoryPoints(result) {
   return { points };
 }
 
-function collectAltitudePoints(result) {
+function collectTimeSeriesPoints(result, chart) {
   const bus = result.buses.find((candidate) => candidate.name === trajectoryConfig.busName);
   if (!bus) {
     return {
-      error: `没有找到 ${trajectoryConfig.busName} 消息，无法绘制高度。`,
+      error: `没有找到 ${trajectoryConfig.busName} 消息，无法绘制${chart.title}。`,
     };
   }
 
-  if (!bus.fields.includes(trajectoryConfig.zField)) {
+  if (!bus.fields.includes(chart.field)) {
     return {
-      error: `${trajectoryConfig.busName} 缺少字段：${trajectoryConfig.zField}。`,
+      error: `${trajectoryConfig.busName} 缺少字段：${chart.field}。`,
     };
   }
 
@@ -649,17 +667,17 @@ function collectAltitudePoints(result) {
     .map((frame, index) => ({
       index,
       timeSeconds: timestampField && Number.isFinite(Number(frame[timestampField])) ? Number(frame[timestampField]) * 0.001 : index,
-      value: Number(frame[trajectoryConfig.zField]),
+      value: Number(frame[chart.field]),
     }))
     .filter((point) => Number.isFinite(point.timeSeconds) && Number.isFinite(point.value));
 
   if (points.length < 2) {
     return {
-      error: `${trajectoryConfig.busName}.${trajectoryConfig.zField} 有效数据点不足。`,
+      error: `${trajectoryConfig.busName}.${chart.field} 有效数据点不足。`,
     };
   }
 
-  return { points };
+  return { chart, points };
 }
 
 function getDefaultTrajectoryCamera() {
@@ -1077,7 +1095,8 @@ function createTrajectoryPlotSpec(points, mode) {
   };
 }
 
-function createAltitudePlotSpec(points) {
+function createTimeSeriesPlotSpec(series) {
+  const { chart, points } = series;
   const time = points.map((point) => point.timeSeconds);
   const values = points.map((point) => point.value);
   const pointMeta = points.map((point) => [point.index, point.timeSeconds]);
@@ -1108,14 +1127,15 @@ function createAltitudePlotSpec(points) {
       {
         type: "scatter",
         mode: "lines",
-        name: "高度",
+        name: chart.title,
         x: time,
         y: values,
         customdata: pointMeta,
         line: { color: "#1d5fd1", width: 2.5 },
+        showlegend: true,
         hoverlabel,
         hovertemplate:
-          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>h_R: %{y:.3f} m<extra></extra>",
+          `frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>${escapeHtml(chart.field)}: %{y:.3f} ${escapeHtml(chart.unit)}<extra></extra>`,
       },
     ],
     layout: {
@@ -1136,11 +1156,11 @@ function createAltitudePlotSpec(points) {
         automargin: true,
       },
       yaxis: {
-        title: "h_R",
+        title: chart.field,
         range: getPaddedRange(values),
         gridcolor: "#dbe2ec",
         zerolinecolor: "#94a3b8",
-        ticksuffix: " m",
+        ticksuffix: ` ${chart.unit}`,
         automargin: true,
       },
     },
@@ -1189,8 +1209,8 @@ function renderTrajectoryPlotTo(plot, points, mode, interactionMode) {
   setup3DAxisTickAutoscale(plot, mode);
 }
 
-function renderAltitudePlotTo(plot, points, interactionMode) {
-  const spec = createAltitudePlotSpec(points);
+function renderTimeSeriesPlotTo(plot, series, interactionMode) {
+  const spec = createTimeSeriesPlotSpec(series);
   const config = {
     displayModeBar: false,
     displaylogo: false,
@@ -1278,14 +1298,14 @@ function openTrajectoryDialog(points, initialMode, initialInteractionMode) {
   requestAnimationFrame(drawDialog);
 }
 
-function openAltitudeDialog(points, initialInteractionMode) {
+function openTimeSeriesDialog(series, initialInteractionMode) {
   if (!chartDialog || !chartDialogPlot || !window.Plotly) {
     return;
   }
 
   let dialogInteractionMode = initialInteractionMode;
   if (chartDialogTitle) {
-    chartDialogTitle.textContent = "高度";
+    chartDialogTitle.textContent = series.chart.title;
   }
   if (chartDialogMode) {
     chartDialogMode.hidden = true;
@@ -1293,7 +1313,7 @@ function openAltitudeDialog(points, initialInteractionMode) {
   }
 
   const drawDialog = () => {
-    renderAltitudePlotTo(chartDialogPlot, points, dialogInteractionMode);
+    renderTimeSeriesPlotTo(chartDialogPlot, series, dialogInteractionMode);
     update2DControlIcons({
       interactionButton: chartDialogInteraction,
       resetButton: chartDialogReset,
@@ -1422,26 +1442,27 @@ function renderTrajectoryPlot(points) {
   draw();
 }
 
-function renderAltitudePlot(points) {
-  const plot = document.querySelector("#altitudePlot");
-  const interactionButton = document.querySelector('[data-chart-action="toggle-altitude-interaction"]');
-  const resetButton = document.querySelector('[data-chart-action="reset-altitude-view"]');
-  const expandButton = document.querySelector('[data-chart-action="open-altitude-dialog"]');
-  const downloadButton = document.querySelector('[data-chart-action="download-altitude-image"]');
-  const downloadCsvButton = document.querySelector('[data-chart-action="download-altitude-csv"]');
+function renderTimeSeriesPlot(series) {
+  const { chart, points } = series;
+  const plot = document.querySelector(`#${chart.id}Plot`);
+  const interactionButton = document.querySelector(`[data-chart-action="toggle-${chart.id}-interaction"]`);
+  const resetButton = document.querySelector(`[data-chart-action="reset-${chart.id}-view"]`);
+  const expandButton = document.querySelector(`[data-chart-action="open-${chart.id}-dialog"]`);
+  const downloadButton = document.querySelector(`[data-chart-action="download-${chart.id}-image"]`);
+  const downloadCsvButton = document.querySelector(`[data-chart-action="download-${chart.id}-csv"]`);
   if (!plot) {
     return;
   }
 
   if (!window.Plotly) {
-    plot.innerHTML = '<div class="chart-module-empty">Plotly.js 加载失败，无法显示高度图。</div>';
+    plot.innerHTML = `<div class="chart-module-empty">Plotly.js 加载失败，无法显示${escapeHtml(chart.title)}图。</div>`;
     return;
   }
 
   let interactionMode = "pan";
 
   const draw = () => {
-    renderAltitudePlotTo(plot, points, interactionMode);
+    renderTimeSeriesPlotTo(plot, series, interactionMode);
     update2DControlIcons({ interactionButton, resetButton, interactionMode });
     if (expandButton) {
       inlineSvgIcon(expandButton, "full");
@@ -1468,13 +1489,13 @@ function renderAltitudePlot(points) {
   });
 
   expandButton?.addEventListener("click", () => {
-    openAltitudeDialog(points, interactionMode);
+    openTimeSeriesDialog(series, interactionMode);
   });
 
   downloadButton?.addEventListener("click", () => {
     window.Plotly.downloadImage(plot, {
       format: "png",
-      filename: "INS_Out_altitude",
+      filename: `INS_Out_${chart.field}`,
       width: 1400,
       height: 600,
     });
@@ -1482,18 +1503,18 @@ function renderAltitudePlot(points) {
 
   downloadCsvButton?.addEventListener("click", () => {
     try {
-      const header = ["index", "timeSeconds", "h_R"];
+      const header = ["index", "timeSeconds", chart.field];
       const rows = points.map((point) => [point.index, point.timeSeconds, point.value]);
       const csv = [header.join(","), ...rows.map((row) => row.join(","))].join("\n");
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "INS_Out_altitude.csv";
+      a.download = `INS_Out_${chart.field}.csv`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
-      console.warn("导出高度 CSV 失败", error);
+      console.warn(`导出${chart.title} CSV 失败`, error);
     }
   });
 
@@ -1597,34 +1618,35 @@ function renderTrajectoryFigure(trajectory) {
   `;
 }
 
-function renderAltitudeFigure(altitude) {
-  if (altitude.error) {
-    return `<div class="chart-module-empty">${escapeHtml(altitude.error)}</div>`;
+function renderTimeSeriesFigure(series) {
+  if (series.error) {
+    return `<div class="chart-module-empty">${escapeHtml(series.error)}</div>`;
   }
 
+  const { chart, points } = series;
   return `
     <article class="chart-figure">
       <div class="chart-figure-main">
         <div class="chart-title">
-          <span>高度</span>
-          <small>曲线 · INS_Out.h_R · ${altitude.points.length} 点</small>
+          <span>${escapeHtml(chart.title)}</span>
+          <small>曲线 · INS_Out.${escapeHtml(chart.field)} · ${points.length} 点</small>
         </div>
-        <div class="plotly-chart plotly-chart-compact" id="altitudePlot" aria-label="INS_Out 高度曲线"></div>
+        <div class="plotly-chart plotly-chart-compact" id="${escapeHtml(chart.id)}Plot" aria-label="INS_Out ${escapeHtml(chart.title)}曲线"></div>
       </div>
-      <div class="chart-actions" aria-label="高度图操作">
-        <button class="icon-button" type="button" data-chart-action="toggle-altitude-interaction" aria-label="切换 平移/缩放"></button>
-        <button class="icon-button" type="button" data-chart-action="reset-altitude-view" aria-label="复位视图"></button>
-        <button class="icon-button" type="button" data-chart-action="open-altitude-dialog" aria-label="展开"></button>
-        <button class="icon-button" type="button" data-chart-action="download-altitude-image" aria-label="下载图片"></button>
-        <button class="icon-button" type="button" data-chart-action="download-altitude-csv" aria-label="下载 CSV"></button>
+      <div class="chart-actions" aria-label="${escapeHtml(chart.title)}图操作">
+        <button class="icon-button" type="button" data-chart-action="toggle-${escapeHtml(chart.id)}-interaction" aria-label="切换 平移/缩放"></button>
+        <button class="icon-button" type="button" data-chart-action="reset-${escapeHtml(chart.id)}-view" aria-label="复位视图"></button>
+        <button class="icon-button" type="button" data-chart-action="open-${escapeHtml(chart.id)}-dialog" aria-label="展开"></button>
+        <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-image" aria-label="下载图片"></button>
+        <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-csv" aria-label="下载 CSV"></button>
       </div>
     </article>
   `;
 }
 
-function renderModuleContent(module, trajectory, altitude) {
+function renderModuleContent(module, trajectory, timeSeries) {
   if (module.id === "pose") {
-    return `${renderTrajectoryFigure(trajectory)}${renderAltitudeFigure(altitude)}`;
+    return `${renderTrajectoryFigure(trajectory)}${timeSeries.map(renderTimeSeriesFigure).join("")}`;
   }
 
   return '<div class="chart-module-empty">图表待添加</div>';
@@ -1632,7 +1654,7 @@ function renderModuleContent(module, trajectory, altitude) {
 
 function renderCharts(result) {
   const trajectory = collectTrajectoryPoints(result);
-  const altitude = collectAltitudePoints(result);
+  const timeSeries = poseTimeSeriesCharts.map((chart) => collectTimeSeriesPoints(result, chart));
 
   chartGrid.innerHTML = chartModules
     .map(
@@ -1645,7 +1667,7 @@ function renderCharts(result) {
             </div>
           </div>
           <div class="chart-stack">
-            ${renderModuleContent(module, trajectory, altitude)}
+            ${renderModuleContent(module, trajectory, timeSeries)}
           </div>
         </section>
       `,
@@ -1657,11 +1679,9 @@ function renderCharts(result) {
       renderTrajectoryPlot(trajectory.points);
     });
   }
-  if (!altitude.error) {
-    requestAnimationFrame(() => {
-      renderAltitudePlot(altitude.points);
-    });
-  }
+  requestAnimationFrame(() => {
+    timeSeries.filter((series) => !series.error).forEach(renderTimeSeriesPlot);
+  });
 }
 
 async function parseAndRender(buffer, displayName, cacheMeta = null) {
