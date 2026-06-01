@@ -303,6 +303,27 @@ table {
   font-size: 14px;
 }
 
+.bus-table {
+  table-layout: fixed;
+}
+
+.bus-col-id,
+.bus-col-fields {
+  width: 18%;
+}
+
+.bus-col-name {
+  width: 30%;
+}
+
+.bus-col-payload {
+  width: 20%;
+}
+
+.bus-col-frames {
+  width: 14%;
+}
+
 th,
 td {
   padding: 10px 9px;
