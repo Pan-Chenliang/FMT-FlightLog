@@ -10,6 +10,8 @@
   --ok: #0f8a5f;
   --shadow: 0 8px 20px rgba(35, 50, 80, 0.07);
   --card-shadow: 0 6px 16px rgba(35, 50, 80, 0.05);
+  --chart-pad: 12px;
+  --chart-side-pad: 12px;
 }
 
 * {
@@ -476,8 +478,9 @@ th {
 .chart-stack {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
-  padding: 14px;
+  /* match chart-stack spacing to button/button spacing for visual consistency */
+  gap: var(--chart-pad);
+  padding: var(--chart-pad);
 }
 
 .chart-module-empty {
@@ -491,9 +494,11 @@ th {
 
 .chart-figure {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px;
-  gap: 12px;
+  /* main column stretches, actions column sized to content to avoid unused whitespace */
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--chart-pad);
   align-items: stretch;
+  width: 100%;
 }
 
 .chart-figure-main {
@@ -508,8 +513,8 @@ th {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--chart-pad);
+  padding: var(--chart-pad) var(--chart-side-pad);
   border-bottom: 1px solid var(--line);
   font-size: 14px;
   font-weight: 800;
@@ -531,7 +536,16 @@ th {
 .chart-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--chart-pad);
+  align-items: flex-end; /* align buttons to right edge so right margin equals side padding */
+  justify-content: flex-start;
+  width: auto;
+  min-width: 0; /* allow column to shrink to content */
+  /* make first button flush with the top of the actions column */
+  padding-top: 0;
+  /* remove right padding so buttons sit flush with the actions column edge */
+  padding-right: 0;
+  padding-left: 0px;
 }
 
 .chart-actions button {
@@ -555,8 +569,8 @@ th {
 
 .plotly-chart {
   width: 100%;
-  height: min(68vh, 680px);
-  min-height: 460px;
+  height: min(75vh, 820px);
+  min-height: 520px;
   background: #fbfcff;
   margin: 0;
   padding: 0;
@@ -650,21 +664,55 @@ button.cancel-transfer:hover {
 }
 
 .icon-button {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fff;
   color: var(--muted);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 500;
   line-height: 1;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .icon-button:hover {
   background: #f3f7ff;
   color: var(--primary-dark);
+}
+
+.chart-actions .icon-button img {
+  display: block;
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
+}
+
+/* Reduce horizontal whitespace around icon buttons */
+.chart-actions .icon-button {
+  margin: 0; /* no left/right gap */
+  /* ensure no implicit right margin from user agent */
+  margin-right: 0;
+}
+
+/* ensure the very first icon button sits flush at the top */
+.chart-actions .icon-button:first-child {
+  margin-top: 0;
+}
+
+/* Ensure icon buttons in the action bar are fixed-size squares and not full-width */
+.chart-actions .icon-button {
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  flex: none !important;
 }
 
 .fc-controls {

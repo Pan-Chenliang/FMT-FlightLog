@@ -996,8 +996,11 @@ function createTrajectoryPlotSpec(points, mode) {
 function renderTrajectoryPlot(points) {
   const plot = document.querySelector("#trajectoryPlot");
   const modeButton = document.querySelector('[data-chart-action="toggle-trajectory-mode"]');
+  const interactionButton = document.querySelector('[data-chart-action="toggle-interaction-mode"]');
   const resetButton = document.querySelector('[data-chart-action="reset-trajectory-view"]');
+  const expandButton = document.querySelector('[data-chart-action="toggle-fullscreen"]');
   const downloadButton = document.querySelector('[data-chart-action="download-trajectory-image"]');
+  const downloadCsvButton = document.querySelector('[data-chart-action="download-trajectory-csv"]');
   const subtitle = document.querySelector("#trajectorySubtitle");
   if (!plot) {
     return;
@@ -1009,6 +1012,7 @@ function renderTrajectoryPlot(points) {
   }
 
   let mode = "3d";
+  let interactionMode = "pan"; // or 'zoom'
 
   const draw = () => {
     const spec = createTrajectoryPlotSpec(points, mode);
@@ -1021,12 +1025,43 @@ function renderTrajectoryPlot(points) {
     };
     window.Plotly.purge(plot);
     window.Plotly.newPlot(plot, spec.traces, spec.layout, config);
+    // set dragmode according to interactionMode for 2D plots
+    if (mode === '2d') {
+      try { window.Plotly.relayout(plot, { dragmode: interactionMode === 'pan' ? 'pan' : 'zoom' }); } catch (e) {}
+    }
     // attach controlled wheel zoom for 2D mode (and remove when switching to 3D)
     setupWheelZoom(plot, mode);
     // attach 3D axis tick autoscale when in 3D (and remove when switching to 2D)
     setup3DAxisTickAutoscale(plot, mode);
+    // set button icons from assets/icons
+    const iconPath = (name) => `assets/icons/${name}.svg`;
     if (modeButton) {
-      modeButton.textContent = mode === "3d" ? "切换二维" : "切换三维";
+      // show the target mode on the button: when currently 3D, show 2D icon (meaning 'switch to 2D')
+      const name = mode === '3d' ? '2d' : '3d';
+      modeButton.innerHTML = `<img src="${iconPath(name)}" alt="${name}">`;
+      modeButton.title = mode === '3d' ? '切换二维' : '切换三维';
+    }
+    if (interactionButton) {
+      // show the target interaction: when currently 'pan', show 'zoom' icon (meaning 'switch to zoom')
+      const name = interactionMode === 'pan' ? 'zoom' : 'pan';
+      interactionButton.innerHTML = `<img src="${iconPath(name)}" alt="${name}">`;
+      interactionButton.title = interactionMode === 'pan' ? '切换到缩放' : '切换到平移';
+    }
+    if (resetButton) {
+      resetButton.innerHTML = `<img src="${iconPath('reset')}" alt="reset">`;
+      resetButton.title = '复位视图';
+    }
+    if (expandButton) {
+      expandButton.innerHTML = `<img src="${iconPath('full')}" alt="full">`;
+      expandButton.title = '展开图片';
+    }
+    if (downloadButton) {
+      downloadButton.innerHTML = `<img src="${iconPath('download')}" alt="download">`;
+      downloadButton.title = '下载图片';
+    }
+    if (downloadCsvButton) {
+      downloadCsvButton.innerHTML = `<img src="${iconPath('csv')}" alt="csv">`;
+      downloadCsvButton.title = '下载数据 CSV';
     }
     if (subtitle) {
       subtitle.textContent =
@@ -1043,8 +1078,44 @@ function renderTrajectoryPlot(points) {
     draw();
   });
 
+  interactionButton?.addEventListener("click", () => {
+    // Toggle interaction mode without redrawing the whole plot (preserve view)
+    interactionMode = interactionMode === 'pan' ? 'zoom' : 'pan';
+    // If currently in 2D, apply dragmode immediately so view is not reset
+    if (mode === '2d') {
+      try {
+        window.Plotly.relayout(plot, { dragmode: interactionMode === 'pan' ? 'pan' : 'zoom' });
+      } catch (e) {
+        // ignore
+      }
+    }
+    // Update the interaction button icon/title in-place (show target mode)
+    try {
+      const iconPath = (name) => `assets/icons/${name}.svg`;
+      const name = interactionMode === 'pan' ? 'zoom' : 'pan';
+      if (interactionButton) {
+        interactionButton.innerHTML = `<img src="${iconPath(name)}" alt="${name}">`;
+        interactionButton.title = interactionMode === 'pan' ? '切换到缩放' : '切换到平移';
+      }
+    } catch (e) {}
+  });
+
   resetButton?.addEventListener("click", () => {
     draw();
+  });
+
+  expandButton?.addEventListener('click', () => {
+    const container = plot.parentElement;
+    if (!container) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(()=>{});
+      return;
+    }
+    if (container.requestFullscreen) {
+      container.requestFullscreen().catch(()=>{});
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen();
+    }
   });
 
   downloadButton?.addEventListener("click", () => {
@@ -1054,6 +1125,23 @@ function renderTrajectoryPlot(points) {
       width: 1400,
       height: 900,
     });
+  });
+
+  downloadCsvButton?.addEventListener('click', () => {
+    try {
+      const header = ['index','timeSeconds','x','y','z'];
+      const rows = points.map(p => [p.index, p.timeSeconds, p.x, p.y, p.z]);
+      const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = mode === '3d' ? 'INS_Out_trajectory_3d.csv' : 'INS_Out_trajectory_xy.csv';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.warn('导出 CSV 失败', e);
+    }
   });
 
   draw();
@@ -1149,10 +1237,12 @@ function renderTrajectoryFigure(trajectory) {
         <div class="plotly-chart" id="trajectoryPlot" aria-label="INS_Out 可切换二维三维航迹图"></div>
       </div>
       <div class="chart-actions" aria-label="航迹图操作">
-        <button type="button" data-chart-action="toggle-trajectory-mode">切换二维</button>
-        <button type="button" data-chart-action="reset-trajectory-view">复位视图</button>
-        <button type="button" data-chart-action="download-trajectory-image">下载图片</button>
-        <button type="button" disabled>图表设置</button>
+        <button class="icon-button" type="button" data-chart-action="toggle-trajectory-mode" aria-label="切换 2D/3D"></button>
+        <button class="icon-button" type="button" data-chart-action="toggle-interaction-mode" aria-label="切换 平移/缩放"></button>
+        <button class="icon-button" type="button" data-chart-action="reset-trajectory-view" aria-label="复位视图"></button>
+        <button class="icon-button" type="button" data-chart-action="toggle-fullscreen" aria-label="展开"></button>
+        <button class="icon-button" type="button" data-chart-action="download-trajectory-image" aria-label="下载图片"></button>
+        <button class="icon-button" type="button" data-chart-action="download-trajectory-csv" aria-label="下载 CSV"></button>
       </div>
     </article>
   `;
