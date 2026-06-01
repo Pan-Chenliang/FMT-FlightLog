@@ -40,12 +40,17 @@
           <span class="status-label">状态</span>
           <strong id="statusText">等待上传</strong>
         </div>
-        <div class="status-card">
-          <span class="status-label">文件</span>
-          <strong id="fileName">-</strong>
+        <div class="status-card status-card-file">
+          <div class="status-card-body">
+            <span class="status-label" id="fileLabel">文件</span>
+            <div class="status-card-main">
+              <strong id="fileName">-</strong>
+              <button class="subtle-button" id="clearCacheButton" type="button" hidden>清除缓存</button>
+            </div>
+          </div>
         </div>
         <div class="status-card">
-          <span class="status-label">消息类型</span>
+          <span class="status-label">消息数量</span>
           <strong id="busCount">-</strong>
         </div>
         <div class="status-card">

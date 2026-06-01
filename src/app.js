@@ -23,7 +23,9 @@ const flightControllerDialogStatus = document.querySelector("#flightControllerDi
 const fileInput = document.querySelector("#fileInput");
 const dropZone = document.querySelector("#dropZone");
 const statusText = document.querySelector("#statusText");
+const fileLabel = document.querySelector("#fileLabel");
 const fileName = document.querySelector("#fileName");
+const clearCacheButton = document.querySelector("#clearCacheButton");
 const busCount = document.querySelector("#busCount");
 const frameCount = document.querySelector("#frameCount");
 const metaList = document.querySelector("#metaList");
@@ -366,6 +368,25 @@ function setStatus(text, kind = "") {
   statusText.className = kind;
 }
 
+function formatCacheTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (num) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function setFileDisplay(name) {
+  fileName.textContent = name;
+}
+
+function setCacheState(labelText = "文件", hasCache = false) {
+  fileLabel.textContent = labelText;
+  clearCacheButton.hidden = !hasCache;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/gu, "&amp;")
@@ -613,29 +634,19 @@ function renderDownloads(result) {
     });
     downloadActions.append(button);
   }
-
-  const clearButton = document.createElement("button");
-  clearButton.type = "button";
-  clearButton.textContent = "清除缓存";
-  clearButton.addEventListener("click", async () => {
-    try {
-      await clearLastLog();
-      setStatus("缓存已清除");
-    } catch (error) {
-      setStatus(`清除缓存失败：${error.message}`, "error");
-    }
-  });
-  downloadActions.append(clearButton);
 }
 
 async function parseAndRender(buffer, displayName, cacheMeta = null) {
-  fileName.textContent = displayName;
+  setFileDisplay(displayName);
+  setCacheState("文件", false);
   busCount.textContent = "-";
   frameCount.textContent = "-";
   setStatus("解析中");
 
   try {
     const result = parseMlog(buffer);
+    let hasCache = false;
+    let cacheText = "";
 
     if (cacheMeta) {
       try {
@@ -643,6 +654,8 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
           ...cacheMeta,
           buffer,
         });
+        hasCache = true;
+        cacheText = `文件（已缓存 ${formatCacheTime(Date.now())}）`;
       } catch (error) {
         result.warnings.push(`日志缓存失败：${error.message}`);
       }
@@ -651,6 +664,7 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
     busCount.textContent = result.buses.length;
     frameCount.textContent = result.totalFrames;
     setStatus(cacheMeta ? "解析完成，已缓存" : "已从缓存恢复", "ok");
+    setCacheState(cacheText, hasCache);
 
     renderMeta(result);
     renderBusTable(result);
@@ -677,16 +691,27 @@ async function restoreCachedLog() {
   try {
     const cached = await loadLastLog();
     if (!cached) {
+      setCacheState("文件", false);
       return;
     }
 
-    const savedTime = cached.savedAt ? new Date(cached.savedAt).toLocaleString() : "";
-    const suffix = savedTime ? `（缓存：${savedTime}）` : "（缓存）";
-    await parseAndRender(cached.buffer, `${cached.name}${suffix}`);
+    const savedTime = cached.savedAt ? formatCacheTime(cached.savedAt) : "";
+    await parseAndRender(cached.buffer, cached.name);
+    setCacheState(savedTime ? `文件（缓存自 ${savedTime}）` : "文件（缓存）", true);
   } catch (error) {
     setStatus(`读取缓存失败：${error.message}`, "error");
   }
 }
+
+clearCacheButton.addEventListener("click", async () => {
+  try {
+    await clearLastLog();
+    setCacheState("文件", false);
+    setStatus("缓存已清除");
+  } catch (error) {
+    setStatus(`清除缓存失败：${error.message}`, "error");
+  }
+});
 
 fileInput.addEventListener("change", (event) => {
   const [file] = event.target.files;
