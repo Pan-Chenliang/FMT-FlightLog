@@ -40,22 +40,33 @@ const titles = {
 
 const chartModules = [
   {
+    id: "pose",
     title: "位姿信息",
     description: "飞行轨迹与位置姿态数据",
   },
   {
+    id: "io",
     title: "输入输出",
-    description: "地面站摇杆等输入与控制输出",
+    description: "任务、地面站、摇杆输入与控制输出",
   },
   {
+    id: "sensors",
     title: "传感器状态",
     description: "传感器原始数据与工作状态",
   },
   {
+    id: "power",
     title: "电源状态",
     description: "供电与电源消耗数据",
   },
 ];
+
+const trajectoryConfig = {
+  busName: "INS_Out",
+  xField: "x_R",
+  yField: "y_R",
+  zField: "h_R",
+};
 
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
@@ -552,7 +563,597 @@ function renderParamTable(result) {
     .join("");
 }
 
-function renderCharts() {
+function collectTrajectoryPoints(result) {
+  const bus = result.buses.find((candidate) => candidate.name === trajectoryConfig.busName);
+  if (!bus) {
+    return {
+      error: `没有找到 ${trajectoryConfig.busName} 消息，无法绘制航迹。`,
+    };
+  }
+
+  const missingFields = [trajectoryConfig.xField, trajectoryConfig.yField, trajectoryConfig.zField].filter(
+    (field) => !bus.fields.includes(field),
+  );
+  if (missingFields.length > 0) {
+    return {
+      error: `${trajectoryConfig.busName} 缺少字段：${missingFields.join("、")}。`,
+    };
+  }
+
+  const timestampField = bus.timestampField && bus.fields.includes(bus.timestampField) ? bus.timestampField : null;
+
+  const points = bus.frames
+    .map((frame, index) => ({
+      index,
+      timeSeconds: timestampField && Number.isFinite(Number(frame[timestampField])) ? Number(frame[timestampField]) * 0.001 : index,
+      x: Number(frame[trajectoryConfig.xField]),
+      y: Number(frame[trajectoryConfig.yField]),
+      z: Number(frame[trajectoryConfig.zField]),
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z));
+
+  if (points.length < 2) {
+    return {
+      error: `${trajectoryConfig.busName}.${trajectoryConfig.xField}/${trajectoryConfig.yField}/${trajectoryConfig.zField} 有效数据点不足。`,
+    };
+  }
+
+  return { points };
+}
+
+function getDefaultTrajectoryCamera() {
+  return {
+    eye: { x: 1.55, y: 1.65, z: 1.15 },
+  };
+}
+
+function getPaddedRange(values, paddingRatio = 0.06) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const value of values) {
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+  }
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return [-1, 1];
+  }
+
+  if (min === max) {
+    const fallbackPadding = Math.max(1, Math.abs(min) * paddingRatio);
+    return [min - fallbackPadding, max + fallbackPadding];
+  }
+
+  const padding = (max - min) * paddingRatio;
+  return [min - padding, max + padding];
+}
+
+// Choose a "nice" tick step for an axis span so labels are round numbers
+function niceTickStep(span, targetTicks = 4) {
+  if (!Number.isFinite(span) || span <= 0) return 1;
+  const raw = span / Math.max(1, targetTicks);
+  const exp = Math.floor(Math.log10(raw));
+  const base = Math.pow(10, exp);
+  const candidates = [1, 2, 5, 10];
+  for (const c of candidates) {
+    const step = c * base;
+    if (step >= raw) return step;
+  }
+  return 10 * base;
+}
+
+// Attach a throttled relayout listener to keep 3D axis dtick values sensible
+let _sceneTickState = { attached: false };
+function setup3DAxisTickAutoscale(gd, mode) {
+  if (mode !== '3d') {
+    if (_sceneTickState.attached && _sceneTickState.gd === gd) {
+      try { gd.removeEventListener('plotly_relayout', _sceneTickState.handler); } catch (e) {}
+      _sceneTickState = { attached: false };
+    }
+    return;
+  }
+  if (_sceneTickState.attached && _sceneTickState.gd === gd) return;
+  if (_sceneTickState.attached && _sceneTickState.gd && _sceneTickState.gd !== gd) {
+    try { _sceneTickState.gd.removeEventListener('plotly_relayout', _sceneTickState.handler); } catch (e) {}
+    _sceneTickState = { attached: false };
+  }
+
+  const handler = (relayout) => {
+    // Throttle via rAF-like batching
+    if (_sceneTickState.queued) return;
+    _sceneTickState.queued = true;
+    requestAnimationFrame(() => {
+      try {
+        const scene = (gd.layout && gd.layout.scene) || (gd._fullLayout && gd._fullLayout.scene);
+        if (!scene) return;
+        const xRange = (scene.xaxis && scene.xaxis.range) || [0, 1];
+        const yRange = (scene.yaxis && scene.yaxis.range) || [0, 1];
+        const zRange = (scene.zaxis && scene.zaxis.range) || [0, 1];
+        const xSpan = Math.abs(xRange[1] - xRange[0]);
+        const ySpan = Math.abs(yRange[1] - yRange[0]);
+        const zSpan = Math.abs(zRange[1] - zRange[0]);
+        const maxSpan = Math.max(xSpan, ySpan, zSpan, 1e-6);
+        const step = niceTickStep(maxSpan, 4);
+        const updates = {
+          'scene.xaxis.dtick': step,
+          'scene.yaxis.dtick': step,
+          'scene.zaxis.dtick': step,
+        };
+        window.Plotly.relayout(gd, updates).catch(() => {});
+      } finally {
+        _sceneTickState.queued = false;
+      }
+    });
+  };
+
+  gd.addEventListener('plotly_relayout', handler);
+  _sceneTickState = { attached: true, gd, handler, queued: false };
+}
+
+function createTrajectoryPlotSpec(points, mode) {
+  const x = points.map((point) => point.x);
+  const y = points.map((point) => point.y);
+  const z = points.map((point) => point.z);
+  const pointMeta = points.map((point) => [point.index, point.timeSeconds]);
+  const first = points[0];
+  const last = points[points.length - 1];
+  const commonFont = {
+    family: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    color: "#172033",
+  };
+  const hoverlabel = {
+    bgcolor: "rgba(248, 250, 252, 0.52)",
+    bordercolor: "rgba(148, 163, 184, 0.28)",
+    font: { color: "#172033", size: 12 },
+  };
+  // Small inner margins so axis titles/ticks remain visible but chart fills card
+  const plotMargin = { l: 12, r: 12, t: 12, b: 12 };
+  const legend = {
+    x: 0.99,
+    y: 0.99,
+    xanchor: "right",
+    yanchor: "top",
+    traceorder: "normal",
+    bgcolor: "rgba(248, 250, 252, 0.68)",
+    bordercolor: "rgba(148, 163, 184, 0.38)",
+    borderwidth: 1,
+    font: { color: "#172033", size: 12 },
+    itemwidth: 30,
+    itemsizing: "constant",
+  };
+
+  if (mode === "2d") {
+    const yAxisRange = getPaddedRange(x);
+    const xAxisRange = getPaddedRange(y);
+
+    return {
+      traces: [
+        {
+          type: "scatter",
+          mode: "lines",
+          name: "二维航迹",
+          x: y,
+          y: x,
+          customdata: pointMeta,
+          line: { color: "#1d5fd1", width: 2.5 },
+          hoverlabel,
+          hovertemplate:
+            "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>y_R: %{x:.3f} m<br>x_R: %{y:.3f} m<extra></extra>",
+        },
+        {
+          type: "scatter",
+          mode: "markers",
+          name: "起点/终点",
+          x: [first.y, last.y],
+          y: [first.x, last.x],
+          customdata: [
+            [first.index, first.timeSeconds],
+            [last.index, last.timeSeconds],
+          ],
+          marker: { color: ["#16a34a", "#dc2626"], size: 7 },
+          hoverlabel,
+          hovertemplate:
+            "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>y_R: %{x:.3f} m<br>x_R: %{y:.3f} m<extra></extra>",
+        },
+        {
+          type: "scatter",
+          mode: "text",
+          name: "起点/终点标签",
+          x: [first.y, last.y],
+          y: [first.x, last.x],
+          text: ["起点", "终点"],
+          textposition: "top center",
+          showlegend: false,
+          hoverinfo: "skip",
+        },
+      ],
+      layout: {
+        autosize: true,
+        margin: plotMargin,
+        paper_bgcolor: "#fbfcff",
+        // use native pan drag mode for smoother panning (left-button)
+        dragmode: "pan",
+        plot_bgcolor: "#fbfcff",
+        font: commonFont,
+        hoverlabel,
+        legend,
+        xaxis: {
+          title: "y_R",
+          range: xAxisRange,
+          gridcolor: "#dbe2ec",
+          zerolinecolor: "#94a3b8",
+          automargin: true,
+        },
+        yaxis: {
+          title: "x_R",
+          range: yAxisRange,
+          gridcolor: "#dbe2ec",
+          zerolinecolor: "#94a3b8",
+          scaleanchor: "x",
+          scaleratio: 1,
+          automargin: true,
+        },
+      },
+    };
+  }
+
+  // Compute ground plane extents: each side extended by 5% of the
+  // maximum XY dimension so the ground is slightly larger than the trajectory.
+  const finiteX = x.filter(Number.isFinite);
+  const finiteY = y.filter(Number.isFinite);
+  let groundXRange;
+  let groundYRange;
+  if (finiteX.length === 0 || finiteY.length === 0) {
+    groundXRange = [-1, 1];
+    groundYRange = [-1, 1];
+  } else {
+    const xMin = Math.min(...finiteX);
+    const xMax = Math.max(...finiteX);
+    const yMin = Math.min(...finiteY);
+    const yMax = Math.max(...finiteY);
+    let xSize = xMax - xMin;
+    let ySize = yMax - yMin;
+    if (!Number.isFinite(xSize) || xSize === 0) xSize = 1;
+    if (!Number.isFinite(ySize) || ySize === 0) ySize = 1;
+    const maxXY = Math.max(xSize, ySize);
+    const groundMargin = maxXY * 0.05; // 5% of max XY size
+    groundXRange = [xMin - groundMargin, xMax + groundMargin];
+    groundYRange = [yMin - groundMargin, yMax + groundMargin];
+  }
+  // Z range keep existing padded behavior to include ground (z=0)
+  const zRange = getPaddedRange([...z, 0], 0.1);
+
+  return {
+    traces: [
+      {
+        type: "scatter3d",
+        mode: "lines",
+        name: "三维航迹",
+        x,
+        y,
+        z,
+        customdata: pointMeta,
+        line: { color: "#1d5fd1", width: 6 },
+        hoverlabel,
+        hovertemplate:
+          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>x_R: %{x:.3f} m<br>y_R: %{y:.3f} m<br>h_R: %{z:.3f} m<extra></extra>",
+      },
+      {
+        type: "scatter3d",
+        mode: "markers",
+        name: "起点/终点",
+        x: [first.x, last.x],
+        y: [first.y, last.y],
+        z: [first.z, last.z],
+        customdata: [
+          [first.index, first.timeSeconds],
+          [last.index, last.timeSeconds],
+        ],
+        marker: { color: ["#16a34a", "#dc2626"], size: 7 },
+        hoverlabel,
+        hovertemplate:
+          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>x_R: %{x:.3f} m<br>y_R: %{y:.3f} m<br>h_R: %{z:.3f} m<extra></extra>",
+      },
+      {
+        type: "scatter3d",
+        mode: "text",
+        name: "起点/终点标签",
+        x: [first.x, last.x],
+        y: [first.y, last.y],
+        z: [first.z, last.z],
+        text: ["起点", "终点"],
+        textposition: "top center",
+        showlegend: false,
+        hoverinfo: "skip",
+      },
+      {
+        type: "mesh3d",
+        name: "地面 z=0",
+        x: [groundXRange[0], groundXRange[1], groundXRange[1], groundXRange[0]],
+        y: [groundYRange[0], groundYRange[0], groundYRange[1], groundYRange[1]],
+        z: [0, 0, 0, 0],
+        i: [0, 0],
+        j: [1, 2],
+        k: [2, 3],
+        color: "#94a3b8",
+        opacity: 0.6,
+        hoverinfo: "skip",
+        showlegend: true,
+      },
+    ],
+    layout: {
+      autosize: true,
+      margin: plotMargin,
+      paper_bgcolor: "#fbfcff",
+      font: commonFont,
+      hoverlabel,
+      legend,
+      scene: {
+        // Use manual aspect where axis lengths are proportional to data ranges
+        // so that 1 unit in X/Y/Z maps to the same visual length.
+        aspectmode: "manual",
+        aspectratio: (() => {
+          // compute sizes for each axis in data units
+          const finiteX = x.filter(Number.isFinite);
+          const finiteY = y.filter(Number.isFinite);
+          const finiteZ = z.filter(Number.isFinite);
+          const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
+          const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
+          const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
+          const max = Math.max(xSize, ySize, zSize);
+          // normalize so largest axis gets ratio 1
+          return { x: xSize / max, y: ySize / max, z: zSize / max };
+        })(),
+        // set initial tick spacing based on max span so X/Y/Z use consistent dtick
+        xaxis: {
+          title: "x_R",
+          range: groundXRange,
+          backgroundcolor: "#f8fafc",
+          gridcolor: "#dbe2ec",
+          zerolinecolor: "#94a3b8",
+          dtick: (() => {
+            const finiteX = x.filter(Number.isFinite);
+            const finiteY = y.filter(Number.isFinite);
+            const finiteZ = z.filter(Number.isFinite);
+            const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
+            const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
+            const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
+            const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
+            return niceTickStep(maxSpan, 4);
+          })(),
+        },
+        yaxis: {
+          title: "y_R",
+          range: groundYRange,
+          backgroundcolor: "#f8fafc",
+          gridcolor: "#dbe2ec",
+          zerolinecolor: "#94a3b8",
+          dtick: (() => {
+            const finiteX = x.filter(Number.isFinite);
+            const finiteY = y.filter(Number.isFinite);
+            const finiteZ = z.filter(Number.isFinite);
+            const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
+            const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
+            const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
+            const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
+            return niceTickStep(maxSpan, 4);
+          })(),
+        },
+        zaxis: {
+          title: "h_R",
+          range: zRange,
+          backgroundcolor: "#f8fafc",
+          gridcolor: "#dbe2ec",
+          zerolinecolor: "#94a3b8",
+          dtick: (() => {
+            const finiteX = x.filter(Number.isFinite);
+            const finiteY = y.filter(Number.isFinite);
+            const finiteZ = z.filter(Number.isFinite);
+            const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
+            const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
+            const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
+            const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
+            return niceTickStep(maxSpan, 4);
+          })(),
+        },
+        // camera: compute eye scale so plot fills more of the view for large ranges
+        camera: (() => {
+          const finiteX = x.filter(Number.isFinite);
+          const finiteY = y.filter(Number.isFinite);
+          const finiteZ = z.filter(Number.isFinite);
+          const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
+          const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
+          const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
+          const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
+          const baseEye = getDefaultTrajectoryCamera().eye || { x: 1.55, y: 1.65, z: 1.15 };
+          const denom = Math.max(1, Math.log10(maxSpan) + 0.1);
+          const factor = 1 / denom;
+          return { eye: { x: baseEye.x * factor, y: baseEye.y * factor, z: baseEye.z * factor } };
+        })(),
+      },
+    },
+  };
+}
+
+function renderTrajectoryPlot(points) {
+  const plot = document.querySelector("#trajectoryPlot");
+  const modeButton = document.querySelector('[data-chart-action="toggle-trajectory-mode"]');
+  const resetButton = document.querySelector('[data-chart-action="reset-trajectory-view"]');
+  const downloadButton = document.querySelector('[data-chart-action="download-trajectory-image"]');
+  const subtitle = document.querySelector("#trajectorySubtitle");
+  if (!plot) {
+    return;
+  }
+
+  if (!window.Plotly) {
+    plot.innerHTML = '<div class="chart-module-empty">Plotly.js 加载失败，无法显示航迹图。</div>';
+    return;
+  }
+
+  let mode = "3d";
+
+  const draw = () => {
+    const spec = createTrajectoryPlotSpec(points, mode);
+    // enable native scrollZoom only for 3D; for 2D we use the controlled handler
+    const config = {
+      displayModeBar: false,
+      displaylogo: false,
+      responsive: true,
+      scrollZoom: mode === '3d',
+    };
+    window.Plotly.purge(plot);
+    window.Plotly.newPlot(plot, spec.traces, spec.layout, config);
+    // attach controlled wheel zoom for 2D mode (and remove when switching to 3D)
+    setupWheelZoom(plot, mode);
+    // attach 3D axis tick autoscale when in 3D (and remove when switching to 2D)
+    setup3DAxisTickAutoscale(plot, mode);
+    if (modeButton) {
+      modeButton.textContent = mode === "3d" ? "切换二维" : "切换三维";
+    }
+    if (subtitle) {
+      subtitle.textContent =
+        mode === "3d"
+          ? `三维航迹 · INS_Out.x_R / y_R / h_R · ${points.length} 点`
+          : `二维航迹 · INS_Out.x_R / y_R · ${points.length} 点`;
+    }
+  };
+
+  // Use Plotly's native interactions for panning/zooming to keep smooth performance.
+
+  modeButton?.addEventListener("click", () => {
+    mode = mode === "3d" ? "2d" : "3d";
+    draw();
+  });
+
+  resetButton?.addEventListener("click", () => {
+    draw();
+  });
+
+  downloadButton?.addEventListener("click", () => {
+    window.Plotly.downloadImage(plot, {
+      format: "png",
+      filename: mode === "3d" ? "INS_Out_trajectory_3d" : "INS_Out_trajectory_xy",
+      width: 1400,
+      height: 900,
+    });
+  });
+
+  draw();
+}
+
+// Controlled wheel zoom for 2D plots: throttled, centered at cursor, uses Plotly.relayout
+let _wheelZoomState = { attached: false };
+function setupWheelZoom(gd, currentMode) {
+  // If not in 2D mode, remove any existing handler for this graph and return
+  if (currentMode !== '2d') {
+    if (_wheelZoomState.attached && _wheelZoomState.gd === gd) {
+      try {
+        _wheelZoomState.gd.removeEventListener('wheel', _wheelZoomState.handler, { passive: false });
+      } catch (err) {
+        // ignore
+      }
+      _wheelZoomState = { attached: false };
+    }
+    return;
+  }
+
+  // If already attached to this graph, do nothing
+  if (_wheelZoomState.attached && _wheelZoomState.gd === gd) return;
+
+  // If attached to a different graph, remove it first
+  if (_wheelZoomState.attached && _wheelZoomState.gd && _wheelZoomState.gd !== gd) {
+    try {
+      _wheelZoomState.gd.removeEventListener('wheel', _wheelZoomState.handler, { passive: false });
+    } catch (err) {}
+    _wheelZoomState = { attached: false };
+  }
+
+  // attach
+  const handler = (ev) => {
+    if (ev.ctrlKey || ev.metaKey) return; // allow browser zoom with ctrl/meta
+    ev.preventDefault();
+    const full = gd._fullLayout;
+    if (!full || !full.xaxis || !full.yaxis) return;
+    const xaxis = full.xaxis;
+    const yaxis = full.yaxis;
+    const bbox = gd.getBoundingClientRect();
+    const px = ev.clientX - bbox.left;
+    const py = ev.clientY - bbox.top;
+    const xOffset = xaxis._offset || 0;
+    const yOffset = yaxis._offset || 0;
+    const xLen = xaxis._length || (bbox.width - xOffset) || 1;
+    const yLen = yaxis._length || (bbox.height - yOffset) || 1;
+    const xStart = xaxis.range[0];
+    const xEnd = xaxis.range[1];
+    const yStart = yaxis.range[0];
+    const yEnd = yaxis.range[1];
+    const rx = (px - xOffset) / xLen;
+    const ry = 1 - (py - yOffset) / yLen;
+    const cx = Math.max(0, Math.min(1, rx));
+    const cy = Math.max(0, Math.min(1, ry));
+    const delta = ev.deltaY;
+    const factor = Math.exp(delta * -0.0025);
+    const newXSpan = (xEnd - xStart) * factor;
+    const newYSpan = (yEnd - yStart) * factor;
+    const xCenter = xStart + cx * (xEnd - xStart);
+    const yCenter = yStart + cy * (yEnd - yStart);
+    const newX = [xCenter - cx * newXSpan, xCenter + (1 - cx) * newXSpan];
+    const newY = [yCenter - cy * newYSpan, yCenter + (1 - cy) * newYSpan];
+    if (_wheelZoomState.queued) {
+      _wheelZoomState.queued = { newX, newY };
+      return;
+    }
+    _wheelZoomState.queued = { newX, newY };
+    requestAnimationFrame(() => {
+      const q = _wheelZoomState.queued;
+      if (q) {
+        window.Plotly.relayout(gd, { 'xaxis.range': q.newX, 'yaxis.range': q.newY });
+      }
+      _wheelZoomState.queued = null;
+    });
+  };
+  gd.addEventListener('wheel', handler, { passive: false });
+  _wheelZoomState = { attached: true, gd, handler, queued: null };
+}
+
+function renderTrajectoryFigure(trajectory) {
+  if (trajectory.error) {
+    return `<div class="chart-module-empty">${escapeHtml(trajectory.error)}</div>`;
+  }
+
+  return `
+    <article class="chart-figure">
+      <div class="chart-figure-main">
+        <div class="chart-title">
+          <span>航迹</span>
+          <small id="trajectorySubtitle">三维航迹 · INS_Out.x_R / y_R / h_R · ${trajectory.points.length} 点</small>
+        </div>
+        <div class="plotly-chart" id="trajectoryPlot" aria-label="INS_Out 可切换二维三维航迹图"></div>
+      </div>
+      <div class="chart-actions" aria-label="航迹图操作">
+        <button type="button" data-chart-action="toggle-trajectory-mode">切换二维</button>
+        <button type="button" data-chart-action="reset-trajectory-view">复位视图</button>
+        <button type="button" data-chart-action="download-trajectory-image">下载图片</button>
+        <button type="button" disabled>图表设置</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderModuleContent(module, trajectory) {
+  if (module.id === "pose") {
+    return renderTrajectoryFigure(trajectory);
+  }
+
+  return '<div class="chart-module-empty">图表待添加</div>';
+}
+
+function renderCharts(result) {
+  const trajectory = collectTrajectoryPoints(result);
+
   chartGrid.innerHTML = chartModules
     .map(
       (module) => `
@@ -564,12 +1165,18 @@ function renderCharts() {
             </div>
           </div>
           <div class="chart-stack">
-            <div class="chart-module-empty">图表待添加</div>
+            ${renderModuleContent(module, trajectory)}
           </div>
         </section>
       `,
     )
     .join("");
+
+  if (!trajectory.error) {
+    requestAnimationFrame(() => {
+      renderTrajectoryPlot(trajectory.points);
+    });
+  }
 }
 
 async function parseAndRender(buffer, displayName, cacheMeta = null) {

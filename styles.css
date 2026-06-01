@@ -506,6 +506,7 @@ th {
 
 .chart-title {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
@@ -550,6 +551,18 @@ th {
 .chart-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
+}
+
+.plotly-chart {
+  width: 100%;
+  height: min(68vh, 680px);
+  min-height: 460px;
+  background: #fbfcff;
+  margin: 0;
+  padding: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .empty-state {
