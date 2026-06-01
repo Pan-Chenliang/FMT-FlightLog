@@ -32,6 +32,12 @@ const metaList = document.querySelector("#metaList");
 const busTable = document.querySelector("#busTable");
 const paramTable = document.querySelector("#paramTable");
 const chartGrid = document.querySelector("#chartGrid");
+const chartDialog = document.querySelector("#chartDialog");
+const closeChartDialog = document.querySelector("#closeChartDialog");
+const chartDialogPlot = document.querySelector("#chartDialogPlot");
+const chartDialogMode = document.querySelector("#chartDialogMode");
+const chartDialogInteraction = document.querySelector("#chartDialogInteraction");
+const chartDialogReset = document.querySelector("#chartDialogReset");
 
 const titles = {
   zh: "FMT MLog 日志在线解析工具",
@@ -1015,12 +1021,103 @@ function createTrajectoryPlotSpec(points, mode) {
   };
 }
 
+function applyTrajectoryInteraction(plot, mode, interactionMode) {
+  const dragmode = interactionMode === "pan" ? "pan" : "zoom";
+  if (mode === "2d") {
+    try {
+      window.Plotly.relayout(plot, { dragmode });
+    } catch (error) {
+      // Ignore Plotly relayout timing errors.
+    }
+    return;
+  }
+
+  try {
+    window.Plotly.relayout(plot, { "scene.dragmode": dragmode });
+  } catch (error) {
+    // 3D dragmode support varies by Plotly version; keep default interaction if unavailable.
+  }
+}
+
+function renderTrajectoryPlotTo(plot, points, mode, interactionMode) {
+  const spec = createTrajectoryPlotSpec(points, mode);
+  const config = {
+    displayModeBar: false,
+    displaylogo: false,
+    responsive: true,
+    scrollZoom: mode === "3d",
+  };
+
+  window.Plotly.purge(plot);
+  window.Plotly.newPlot(plot, spec.traces, spec.layout, config);
+  applyTrajectoryInteraction(plot, mode, interactionMode);
+  setupWheelZoom(plot, mode);
+  setup3DAxisTickAutoscale(plot, mode);
+}
+
+function updateTrajectoryControlIcons({ modeButton, interactionButton, resetButton, mode, interactionMode }) {
+  if (modeButton) {
+    inlineSvgIcon(modeButton, mode === "3d" ? "2d" : "3d");
+    modeButton.title = mode === "3d" ? "切换二维" : "切换三维";
+  }
+  if (interactionButton) {
+    inlineSvgIcon(interactionButton, interactionMode === "pan" ? "zoom" : "pan");
+    interactionButton.title = interactionMode === "pan" ? "切换到缩放" : "切换到平移";
+  }
+  if (resetButton) {
+    inlineSvgIcon(resetButton, "reset");
+    resetButton.title = "复位视图";
+  }
+}
+
+function openTrajectoryDialog(points, initialMode, initialInteractionMode) {
+  if (!chartDialog || !chartDialogPlot || !window.Plotly) {
+    return;
+  }
+
+  let dialogMode = initialMode;
+  let dialogInteractionMode = initialInteractionMode;
+
+  const drawDialog = () => {
+    renderTrajectoryPlotTo(chartDialogPlot, points, dialogMode, dialogInteractionMode);
+    updateTrajectoryControlIcons({
+      modeButton: chartDialogMode,
+      interactionButton: chartDialogInteraction,
+      resetButton: chartDialogReset,
+      mode: dialogMode,
+      interactionMode: dialogInteractionMode,
+    });
+  };
+
+  chartDialogMode.onclick = () => {
+    dialogMode = dialogMode === "3d" ? "2d" : "3d";
+    drawDialog();
+  };
+  chartDialogInteraction.onclick = () => {
+    dialogInteractionMode = dialogInteractionMode === "pan" ? "zoom" : "pan";
+    applyTrajectoryInteraction(chartDialogPlot, dialogMode, dialogInteractionMode);
+    updateTrajectoryControlIcons({
+      modeButton: chartDialogMode,
+      interactionButton: chartDialogInteraction,
+      resetButton: chartDialogReset,
+      mode: dialogMode,
+      interactionMode: dialogInteractionMode,
+    });
+  };
+  chartDialogReset.onclick = () => {
+    drawDialog();
+  };
+
+  chartDialog.showModal();
+  requestAnimationFrame(drawDialog);
+}
+
 function renderTrajectoryPlot(points) {
   const plot = document.querySelector("#trajectoryPlot");
   const modeButton = document.querySelector('[data-chart-action="toggle-trajectory-mode"]');
   const interactionButton = document.querySelector('[data-chart-action="toggle-interaction-mode"]');
   const resetButton = document.querySelector('[data-chart-action="reset-trajectory-view"]');
-  const expandButton = document.querySelector('[data-chart-action="toggle-fullscreen"]');
+  const expandButton = document.querySelector('[data-chart-action="open-chart-dialog"]');
   const downloadButton = document.querySelector('[data-chart-action="download-trajectory-image"]');
   const downloadCsvButton = document.querySelector('[data-chart-action="download-trajectory-csv"]');
   const subtitle = document.querySelector("#trajectorySubtitle");
@@ -1037,42 +1134,9 @@ function renderTrajectoryPlot(points) {
   let interactionMode = "pan"; // or 'zoom'
 
   const draw = () => {
-    const spec = createTrajectoryPlotSpec(points, mode);
-    // enable native scrollZoom only for 3D; for 2D we use the controlled handler
-    const config = {
-      displayModeBar: false,
-      displaylogo: false,
-      responsive: true,
-      scrollZoom: mode === '3d',
-    };
-    window.Plotly.purge(plot);
-    window.Plotly.newPlot(plot, spec.traces, spec.layout, config);
-    // set dragmode according to interactionMode for 2D plots
-    if (mode === '2d') {
-      try { window.Plotly.relayout(plot, { dragmode: interactionMode === 'pan' ? 'pan' : 'zoom' }); } catch (e) {}
-    }
-    // attach controlled wheel zoom for 2D mode (and remove when switching to 3D)
-    setupWheelZoom(plot, mode);
-    // attach 3D axis tick autoscale when in 3D (and remove when switching to 2D)
-    setup3DAxisTickAutoscale(plot, mode);
+    renderTrajectoryPlotTo(plot, points, mode, interactionMode);
     // set button icons from assets/icons. Inline the primary two so CSS can tint/scale them.
-    const iconPath = (name) => `assets/icons/${name}.svg`;
-    if (modeButton) {
-      const name = mode === '3d' ? '2d' : '3d';
-      // inline so CSS `color` / `currentColor` can tint it
-      inlineSvgIcon(modeButton, name);
-      modeButton.title = mode === '3d' ? '切换二维' : '切换三维';
-    }
-    if (interactionButton) {
-      const name = interactionMode === 'pan' ? 'zoom' : 'pan';
-      inlineSvgIcon(interactionButton, name);
-      interactionButton.title = interactionMode === 'pan' ? '切换到缩放' : '切换到平移';
-    }
-    if (resetButton) {
-      // Inline at runtime so CSS `color` controls the SVG fill without editing files
-      inlineSvgIcon(resetButton, 'reset');
-      resetButton.title = '复位视图';
-    }
+    updateTrajectoryControlIcons({ modeButton, interactionButton, resetButton, mode, interactionMode });
     if (expandButton) {
       inlineSvgIcon(expandButton, 'full');
       expandButton.title = '展开图片';
@@ -1103,14 +1167,7 @@ function renderTrajectoryPlot(points) {
   interactionButton?.addEventListener("click", () => {
     // Toggle interaction mode without redrawing the whole plot (preserve view)
     interactionMode = interactionMode === 'pan' ? 'zoom' : 'pan';
-    // If currently in 2D, apply dragmode immediately so view is not reset
-    if (mode === '2d') {
-      try {
-        window.Plotly.relayout(plot, { dragmode: interactionMode === 'pan' ? 'pan' : 'zoom' });
-      } catch (e) {
-        // ignore
-      }
-    }
+    applyTrajectoryInteraction(plot, mode, interactionMode);
     // Update the interaction button icon/title in-place (show target mode)
     try {
       const name = interactionMode === 'pan' ? 'zoom' : 'pan';
@@ -1127,17 +1184,7 @@ function renderTrajectoryPlot(points) {
   });
 
   expandButton?.addEventListener('click', () => {
-    const container = plot.parentElement;
-    if (!container) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(()=>{});
-      return;
-    }
-    if (container.requestFullscreen) {
-      container.requestFullscreen().catch(()=>{});
-    } else if (container.webkitRequestFullscreen) {
-      container.webkitRequestFullscreen();
-    }
+    openTrajectoryDialog(points, mode, interactionMode);
   });
 
   downloadButton?.addEventListener("click", () => {
@@ -1262,7 +1309,7 @@ function renderTrajectoryFigure(trajectory) {
         <button class="icon-button" type="button" data-chart-action="toggle-trajectory-mode" aria-label="切换 2D/3D"></button>
         <button class="icon-button" type="button" data-chart-action="toggle-interaction-mode" aria-label="切换 平移/缩放"></button>
         <button class="icon-button" type="button" data-chart-action="reset-trajectory-view" aria-label="复位视图"></button>
-        <button class="icon-button" type="button" data-chart-action="toggle-fullscreen" aria-label="展开"></button>
+        <button class="icon-button" type="button" data-chart-action="open-chart-dialog" aria-label="展开"></button>
         <button class="icon-button" type="button" data-chart-action="download-trajectory-image" aria-label="下载图片"></button>
         <button class="icon-button" type="button" data-chart-action="download-trajectory-csv" aria-label="下载 CSV"></button>
       </div>
@@ -1433,6 +1480,16 @@ flightControllerImport.addEventListener("click", async () => {
 
 closeFlightControllerDialog.addEventListener("click", () => {
   flightControllerDialog.close();
+});
+
+closeChartDialog?.addEventListener("click", () => {
+  chartDialog?.close();
+});
+
+chartDialog?.addEventListener("close", () => {
+  if (chartDialogPlot && window.Plotly) {
+    window.Plotly.purge(chartDialogPlot);
+  }
 });
 
 flightControllerDialog.addEventListener("close", () => {
