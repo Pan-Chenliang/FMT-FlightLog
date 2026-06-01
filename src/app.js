@@ -967,17 +967,19 @@ function createTrajectoryPlotSpec(points, mode) {
         hoverlabel,
         legend,
         xaxis: {
-          title: "y_R",
+          title: "y_R (m)",
           range: xAxisRange,
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
+          ticksuffix: " m",
           automargin: true,
         },
         yaxis: {
-          title: "x_R",
+          title: "x_R (m)",
           range: yAxisRange,
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
+          ticksuffix: " m",
           scaleanchor: "x",
           scaleratio: 1,
           automargin: true,
@@ -1097,11 +1099,12 @@ function createTrajectoryPlotSpec(points, mode) {
         })(),
         // set initial tick spacing based on max span so X/Y/Z use consistent dtick
         xaxis: {
-          title: "x_R",
+          title: "x_R (m)",
           range: groundXRange,
           backgroundcolor: "#f8fafc",
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
+          ticksuffix: " m",
           dtick: (() => {
             const finiteX = x.filter(Number.isFinite);
             const finiteY = y.filter(Number.isFinite);
@@ -1117,11 +1120,12 @@ function createTrajectoryPlotSpec(points, mode) {
           })(),
         },
         yaxis: {
-          title: "y_R",
+          title: "y_R (m)",
           range: groundYRange,
           backgroundcolor: "#f8fafc",
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
+          ticksuffix: " m",
           dtick: (() => {
             const finiteX = x.filter(Number.isFinite);
             const finiteY = y.filter(Number.isFinite);
@@ -1136,11 +1140,12 @@ function createTrajectoryPlotSpec(points, mode) {
           })(),
         },
         zaxis: {
-          title: "h_R",
+          title: "h_R (m)",
           range: zRange,
           backgroundcolor: "#f8fafc",
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
+          ticksuffix: " m",
           dtick: (() => {
             const finiteX = x.filter(Number.isFinite);
             const finiteY = y.filter(Number.isFinite);
