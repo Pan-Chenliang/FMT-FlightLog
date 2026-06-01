@@ -1,6 +1,6 @@
 import { clearLastLog, loadLastLog, saveLastLog } from "./logCache.js";
 import { MavlinkFtpClient } from "./mavlinkFtp.js";
-import { busToCsv, collectChartSeries, parseMlog } from "./mlogParser.js";
+import { parseMlog } from "./mlogParser.js";
 
 const languageToggle = document.querySelector("#languageToggle");
 const mainTitle = document.querySelector("#mainTitle");
@@ -32,12 +32,30 @@ const metaList = document.querySelector("#metaList");
 const busTable = document.querySelector("#busTable");
 const paramTable = document.querySelector("#paramTable");
 const chartGrid = document.querySelector("#chartGrid");
-const downloadActions = document.querySelector("#downloadActions");
 
 const titles = {
   zh: "FMT MLog 日志在线解析工具",
   en: "FMT MLog Online Log Parser",
 };
+
+const chartModules = [
+  {
+    title: "位姿信息",
+    description: "飞行轨迹与位置姿态数据",
+  },
+  {
+    title: "输入输出",
+    description: "地面站摇杆等输入与控制输出",
+  },
+  {
+    title: "传感器状态",
+    description: "传感器原始数据与工作状态",
+  },
+  {
+    title: "电源状态",
+    description: "供电与电源消耗数据",
+  },
+];
 
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
@@ -534,208 +552,24 @@ function renderParamTable(result) {
     .join("");
 }
 
-function niceNumber(value) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-  const abs = Math.abs(value);
-  if (abs >= 1000 || (abs > 0 && abs < 0.01)) {
-    return value.toExponential(2);
-  }
-  return value.toFixed(3).replace(/\.?0+$/u, "");
-}
-
-function getPointRange(points, key) {
-  let min = null;
-  let max = null;
-  for (const point of points) {
-    const value = point[key];
-    if (!Number.isFinite(value)) {
-      continue;
-    }
-    min = min === null ? value : Math.min(min, value);
-    max = max === null ? value : Math.max(max, value);
-  }
-  return { min: min ?? 0, max: max ?? 0 };
-}
-
-function drawSeries(canvas, series) {
-  const pixelRatio = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const width = Math.max(320, Math.floor(rect.width * pixelRatio));
-  const height = Math.max(220, Math.floor(rect.height * pixelRatio));
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext("2d");
-  const pad = {
-    left: 56 * pixelRatio,
-    right: 18 * pixelRatio,
-    top: 18 * pixelRatio,
-    bottom: 42 * pixelRatio,
-  };
-  const plotWidth = width - pad.left - pad.right;
-  const plotHeight = height - pad.top - pad.bottom;
-
-  const xRange = getPointRange(series.points, "x");
-  const yRange = getPointRange(series.points, "y");
-  let xMin = xRange.min;
-  let xMax = xRange.max;
-  let yMin = yRange.min;
-  let yMax = yRange.max;
-
-  if (xMin === xMax) {
-    xMin -= 1;
-    xMax += 1;
-  }
-  if (yMin === yMax) {
-    yMin -= 1;
-    yMax += 1;
-  }
-
-  const xScale = (value) => pad.left + ((value - xMin) / (xMax - xMin)) * plotWidth;
-  const yScale = (value) => pad.top + plotHeight - ((value - yMin) / (yMax - yMin)) * plotHeight;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#fbfcff";
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.strokeStyle = "#dbe2ec";
-  ctx.lineWidth = 1 * pixelRatio;
-  ctx.font = `${12 * pixelRatio}px sans-serif`;
-  ctx.fillStyle = "#657084";
-
-  for (let i = 0; i <= 4; i += 1) {
-    const y = pad.top + (plotHeight / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, y);
-    ctx.lineTo(width - pad.right, y);
-    ctx.stroke();
-
-    const value = yMax - ((yMax - yMin) / 4) * i;
-    ctx.fillText(niceNumber(value), 8 * pixelRatio, y + 4 * pixelRatio);
-  }
-
-  for (let i = 0; i <= 4; i += 1) {
-    const x = pad.left + (plotWidth / 4) * i;
-    const value = xMin + ((xMax - xMin) / 4) * i;
-    ctx.fillText(niceNumber(value), x - 18 * pixelRatio, height - 15 * pixelRatio);
-  }
-
-  ctx.strokeStyle = "#1d5fd1";
-  ctx.lineWidth = 2 * pixelRatio;
-  ctx.beginPath();
-  series.points.forEach((point, index) => {
-    const x = xScale(point.x);
-    const y = yScale(point.y);
-    if (index === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  });
-  ctx.stroke();
-
-  ctx.fillStyle = "#174aa1";
-  const step = Math.max(1, Math.floor(series.points.length / 180));
-  for (let i = 0; i < series.points.length; i += step) {
-    const point = series.points[i];
-    ctx.beginPath();
-    ctx.arc(xScale(point.x), yScale(point.y), 2.2 * pixelRatio, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function renderCharts(result) {
-  const seriesList = collectChartSeries(result, 6);
-  if (seriesList.length === 0) {
-    chartGrid.innerHTML = '<div class="empty-state">没有找到可绘制的变化数值字段。</div>';
-    return;
-  }
-
-  chartGrid.innerHTML = seriesList
+function renderCharts() {
+  chartGrid.innerHTML = chartModules
     .map(
-      (series, index) => `
-        <div class="chart-card">
-          <div class="chart-title">
-            <span>${escapeHtml(series.busName)}.${escapeHtml(series.field)}</span>
-            <small>x: ${escapeHtml(series.xLabel)}</small>
+      (module) => `
+        <section class="chart-module" aria-label="${escapeHtml(module.title)}">
+          <div class="chart-module-header">
+            <div>
+              <h3>${escapeHtml(module.title)}</h3>
+              <p>${escapeHtml(module.description)}</p>
+            </div>
           </div>
-          <canvas id="chart-${index}" height="260"></canvas>
-        </div>
+          <div class="chart-stack">
+            <div class="chart-module-empty">图表待添加</div>
+          </div>
+        </section>
       `,
     )
     .join("");
-
-  requestAnimationFrame(() => {
-    seriesList.forEach((series, index) => {
-      drawSeries(document.querySelector(`#chart-${index}`), series);
-    });
-  });
-}
-
-function downloadText(filename, text, mimeType) {
-  const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function renderDownloads(result) {
-  const busesWithFrames = result.buses.filter((bus) => bus.frames.length > 0);
-  downloadActions.innerHTML = "";
-
-  const reportButton = document.createElement("button");
-  reportButton.type = "button";
-  reportButton.textContent = "下载摘要 JSON";
-  reportButton.addEventListener("click", () => {
-    const summary = {
-      formatVersion: result.version,
-      header: {
-        timestampMs: result.timestamp,
-        timestampMeaning: "systime_now_ms at log start",
-        maxNameLen: result.maxNameLen,
-        maxDescLen: result.maxDescLen,
-        maxModelInfoLen: result.maxModelInfoLen,
-      },
-      timing: {
-        globalTimestampStartMs: result.globalTimestampStart,
-        globalTimestampSource: result.globalTimestampSource,
-        minTimestampMs: result.minTimestamp,
-        maxTimestampMs: result.maxTimestamp,
-        durationMs: result.durationMs,
-      },
-      recordedInfo: result.recordedInfo,
-      description: result.description,
-      modelInfo: result.modelInfo,
-      warnings: result.warnings,
-      skippedBytes: result.skippedBytes,
-      buses: result.buses.map((bus) => ({
-        id: bus.id,
-        name: bus.name,
-        fields: bus.fields,
-        payloadSize: bus.payloadSize,
-        frames: bus.frames.length,
-        timestampField: bus.timestampField,
-      })),
-      paramGroups: result.paramGroups,
-    };
-    downloadText("mlog-summary.json", JSON.stringify(summary, null, 2), "application/json");
-  });
-  downloadActions.append(reportButton);
-
-  for (const bus of busesWithFrames.slice(0, 4)) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = `CSV ${bus.name || bus.id}`;
-    button.addEventListener("click", () => {
-      downloadText(`mlog_msg_${bus.id}_${bus.name || "bus"}.csv`, busToCsv(bus), "text/csv");
-    });
-    downloadActions.append(button);
-  }
 }
 
 async function parseAndRender(buffer, displayName, cacheMeta = null) {
@@ -772,7 +606,6 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
     renderBusTable(result);
     renderParamTable(result);
     renderCharts(result);
-    renderDownloads(result);
   } catch (error) {
     setStatus("解析失败", "error");
     chartGrid.innerHTML = `<div class="empty-state">解析失败：${escapeHtml(error.message)}</div>`;
