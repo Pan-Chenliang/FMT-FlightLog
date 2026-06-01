@@ -632,7 +632,7 @@ function getPaddedRange(values, paddingRatio = 0.06) {
 }
 
 // Choose a "nice" tick step for an axis span so labels are round numbers
-function niceTickStep(span, targetTicks = 4) {
+function niceTickStep(span, targetTicks = 12) {
   if (!Number.isFinite(span) || span <= 0) return 1;
   const raw = span / Math.max(1, targetTicks);
   const exp = Math.floor(Math.log10(raw));
@@ -675,12 +675,16 @@ function setup3DAxisTickAutoscale(gd, mode) {
         const xSpan = Math.abs(xRange[1] - xRange[0]);
         const ySpan = Math.abs(yRange[1] - yRange[0]);
         const zSpan = Math.abs(zRange[1] - zRange[0]);
-        const maxSpan = Math.max(xSpan, ySpan, zSpan, 1e-6);
-        const step = niceTickStep(maxSpan, 4);
+            const maxSpan = Math.max(xSpan, ySpan, zSpan, 1e-6);
+            const base = niceTickStep(maxSpan, 12);
+            // prefer a unified step, but ensure at least four ticks per axis
+            const stepX = xSpan / base < 4 ? niceTickStep(xSpan, 4) : base;
+            const stepY = ySpan / base < 4 ? niceTickStep(ySpan, 4) : base;
+            const stepZ = zSpan / base < 4 ? niceTickStep(zSpan, 4) : base;
         const updates = {
-          'scene.xaxis.dtick': step,
-          'scene.yaxis.dtick': step,
-          'scene.zaxis.dtick': step,
+          'scene.xaxis.dtick': stepX,
+          'scene.yaxis.dtick': stepY,
+          'scene.zaxis.dtick': stepZ,
         };
         window.Plotly.relayout(gd, updates).catch(() => {});
       } finally {
@@ -922,7 +926,10 @@ function createTrajectoryPlotSpec(points, mode) {
             const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
             const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
             const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
-            return niceTickStep(maxSpan, 4);
+            const base = niceTickStep(maxSpan, 12);
+            // ensure at least four ticks on this axis; if axis is much shorter, pick a smaller step
+            if (xSize / base < 4) return niceTickStep(xSize, 4);
+            return base;
           })(),
         },
         yaxis: {
@@ -939,7 +946,9 @@ function createTrajectoryPlotSpec(points, mode) {
             const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
             const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
             const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
-            return niceTickStep(maxSpan, 4);
+            const base = niceTickStep(maxSpan, 12);
+            if (ySize / base < 4) return niceTickStep(ySize, 4);
+            return base;
           })(),
         },
         zaxis: {
@@ -956,7 +965,9 @@ function createTrajectoryPlotSpec(points, mode) {
             const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
             const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
             const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
-            return niceTickStep(maxSpan, 4);
+            const base = niceTickStep(maxSpan, 12);
+            if (zSize / base < 4) return niceTickStep(zSize, 4);
+            return base;
           })(),
         },
         // camera: compute eye scale so plot fills more of the view for large ranges
@@ -969,8 +980,8 @@ function createTrajectoryPlotSpec(points, mode) {
           const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
           const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
           const baseEye = getDefaultTrajectoryCamera().eye || { x: 1.55, y: 1.65, z: 1.15 };
-          const denom = Math.max(1, Math.log10(maxSpan) + 0.1);
-          const factor = 1 / denom;
+          // Use a fixed closer factor so the plot fills the view more by default.
+          const factor = 0.5;
           return { eye: { x: baseEye.x * factor, y: baseEye.y * factor, z: baseEye.z * factor } };
         })(),
       },
