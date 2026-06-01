@@ -6,11 +6,11 @@ Use this reference when implementing or debugging the browser-side parser.
 
 Source in firmware:
 
-- `D:\AEROlab\Project\FMT\FMT-Firmware\src\module\log\mlog.h`
+- `../FMT-Firmware/src/module/log/mlog.h`
 - Python parser reference:
-  `D:\AEROlab\Project\FMT\FMT-Firmware\utils\python_mlog_parser\parse_mlog.py`
+  `../FMT-Firmware/utils/python_mlog_parser/parse_mlog.py`
 - MATLAB parser reference:
-  `D:\AEROlab\Project\FMT\FMT-Model\utils\log_parser\functions\mlog_parser.m`
+  `../FMT-Model/utils/log_parser/functions/mlog_parser.m`
 
 Known constants:
 

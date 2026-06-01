@@ -402,12 +402,59 @@ function formatValue(value) {
   return String(value);
 }
 
+function formatDurationMs(value) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+  return `${(value / 1000).toFixed(3).replace(/\.?0+$/u, "")} s`;
+}
+
+function formatElapsedSeconds(startMs, endMs) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return "-";
+  }
+  return formatDurationMs(Math.max(0, endMs - startMs));
+}
+
+function formatTimestampSource(source) {
+  if (source === "bus_first_sample") {
+    return "首个多样本消息时间戳";
+  }
+  if (source === "header_timestamp") {
+    return "文件头 timestamp";
+  }
+  return "-";
+}
+
+function formatRecordedValue(value) {
+  if (value === undefined || value === null || value === "") {
+    return "当前日志未记录";
+  }
+  return String(value);
+}
+
+function formatMsValue(value) {
+  if (!Number.isFinite(value)) {
+    return "-";
+  }
+  return `${value} ms`;
+}
+
 function renderMeta(result) {
+  const recordedInfo = result.recordedInfo ?? {};
+  const modelInfoSections = Array.isArray(recordedInfo.modelInfoSections) ? recordedInfo.modelInfoSections : [];
+  const modelInfoText = modelInfoSections.length
+    ? modelInfoSections.join("\n")
+    : result.modelInfo;
   const meta = [
-    ["版本", result.version],
-    ["时间戳", result.timestamp],
+    ["文件格式版本", result.version],
+    ["起始时间", formatMsValue(result.timestamp)],
+    ["结束时间", formatMsValue(result.maxTimestamp)],
+    ["日志时长", formatElapsedSeconds(result.timestamp, result.maxTimestamp)],
+    ["有效起始时间", formatMsValue(result.globalTimestampStart)],
     ["描述", result.description],
-    ["模型信息", result.modelInfo],
+    ["模型信息", modelInfoText],
+    ["机架类型", formatRecordedValue(recordedInfo.airframe)],
     ["参数组", result.paramGroups.length],
     ["解析警告", result.warnings.length ? result.warnings.join("；") : "-"],
     ["跳过字节", result.skippedBytes],
@@ -474,6 +521,20 @@ function niceNumber(value) {
   return value.toFixed(3).replace(/\.?0+$/u, "");
 }
 
+function getPointRange(points, key) {
+  let min = null;
+  let max = null;
+  for (const point of points) {
+    const value = point[key];
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    min = min === null ? value : Math.min(min, value);
+    max = max === null ? value : Math.max(max, value);
+  }
+  return { min: min ?? 0, max: max ?? 0 };
+}
+
 function drawSeries(canvas, series) {
   const pixelRatio = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -492,12 +553,12 @@ function drawSeries(canvas, series) {
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
 
-  const xs = series.points.map((point) => point.x);
-  const ys = series.points.map((point) => point.y);
-  let xMin = Math.min(...xs);
-  let xMax = Math.max(...xs);
-  let yMin = Math.min(...ys);
-  let yMax = Math.max(...ys);
+  const xRange = getPointRange(series.points, "x");
+  const yRange = getPointRange(series.points, "y");
+  let xMin = xRange.min;
+  let xMax = xRange.max;
+  let yMin = yRange.min;
+  let yMax = yRange.max;
 
   if (xMin === xMax) {
     xMin -= 1;
@@ -608,16 +669,33 @@ function renderDownloads(result) {
   reportButton.textContent = "下载摘要 JSON";
   reportButton.addEventListener("click", () => {
     const summary = {
-      version: result.version,
-      timestamp: result.timestamp,
+      formatVersion: result.version,
+      header: {
+        timestampMs: result.timestamp,
+        timestampMeaning: "systime_now_ms at log start",
+        maxNameLen: result.maxNameLen,
+        maxDescLen: result.maxDescLen,
+        maxModelInfoLen: result.maxModelInfoLen,
+      },
+      timing: {
+        globalTimestampStartMs: result.globalTimestampStart,
+        globalTimestampSource: result.globalTimestampSource,
+        minTimestampMs: result.minTimestamp,
+        maxTimestampMs: result.maxTimestamp,
+        durationMs: result.durationMs,
+      },
+      recordedInfo: result.recordedInfo,
       description: result.description,
       modelInfo: result.modelInfo,
+      warnings: result.warnings,
+      skippedBytes: result.skippedBytes,
       buses: result.buses.map((bus) => ({
         id: bus.id,
         name: bus.name,
         fields: bus.fields,
         payloadSize: bus.payloadSize,
         frames: bus.frames.length,
+        timestampField: bus.timestampField,
       })),
       paramGroups: result.paramGroups,
     };

@@ -25,6 +25,8 @@ const PARAM_TYPE_INFO = {
   7: TYPE_INFO[7],
 };
 
+const TIMESTAMP_FIELD_NAMES = ["timestamp", "timestamp_ms"];
+
 const textDecoder = new TextDecoder("utf-8", { fatal: false });
 
 function ensureAvailable(view, offset, size, label) {
@@ -78,6 +80,49 @@ function payloadSize(bus) {
     const info = TYPE_INFO[element.type];
     return sum + (info ? info.size * element.number : 0);
   }, 0);
+}
+
+function findTimestampFieldName(bus) {
+  for (const element of bus.elements) {
+    if (element.number === 1 && TIMESTAMP_FIELD_NAMES.includes(element.name)) {
+      return element.name;
+    }
+  }
+  return null;
+}
+
+function findParamValue(paramGroups, groupName, paramName) {
+  const group = paramGroups.find((item) => item.name === groupName);
+  if (!group) {
+    return null;
+  }
+  const param = group.params.find((item) => item.name === paramName && !item.unsupported);
+  return param ? param.value : null;
+}
+
+function parseModelInfoSections(modelInfo) {
+  if (!modelInfo) {
+    return [];
+  }
+  return modelInfo
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function numericRange(values) {
+  let min = null;
+  let max = null;
+
+  for (const value of values) {
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    min = min === null ? value : Math.min(min, value);
+    max = max === null ? value : Math.max(max, value);
+  }
+
+  return { min, max };
 }
 
 function parseParamGroups(view, startOffset, nameLen, warnings) {
@@ -216,9 +261,11 @@ function parseHeader(view) {
       payloadSize: 0,
       frames: [],
       fields: [],
+      timestampField: null,
     };
     bus.payloadSize = payloadSize(bus);
     bus.fields = bus.elements.flatMap(buildFieldNames).concat("delta_ts");
+    bus.timestampField = findTimestampFieldName(bus);
     buses.push(bus);
     busById.set(id, bus);
   }
@@ -266,6 +313,12 @@ function parseFrames(view, header) {
   const previousTimestamp = new Map();
   let totalFrames = 0;
   let skippedBytes = 0;
+  const issues = {
+    unknownMessageIds: new Map(),
+    badEndMarkers: 0,
+    truncatedFrames: 0,
+    payloadReadErrors: 0,
+  };
 
   while (offset + 4 <= view.byteLength) {
     if (view.getUint8(offset) !== BEGIN_1 || view.getUint8(offset + 1) !== BEGIN_2) {
@@ -277,6 +330,7 @@ function parseFrames(view, header) {
     const messageId = view.getUint8(offset + 2);
     const bus = header.busById.get(messageId);
     if (!bus) {
+      issues.unknownMessageIds.set(messageId, (issues.unknownMessageIds.get(messageId) ?? 0) + 1);
       offset += 1;
       skippedBytes += 1;
       continue;
@@ -285,10 +339,12 @@ function parseFrames(view, header) {
     const payloadOffset = offset + 3;
     const endOffset = payloadOffset + bus.payloadSize;
     if (endOffset >= view.byteLength) {
+      issues.truncatedFrames += 1;
       break;
     }
 
     if (view.getUint8(endOffset) !== END) {
+      issues.badEndMarkers += 1;
       offset += 1;
       skippedBytes += 1;
       continue;
@@ -296,7 +352,7 @@ function parseFrames(view, header) {
 
     try {
       const frame = readFramePayload(view, bus, payloadOffset);
-      const timestamp = Number(frame.row.timestamp);
+      const timestamp = Number(bus.timestampField ? frame.row[bus.timestampField] : Number.NaN);
       const hasTimestamp = Number.isFinite(timestamp);
       let deltaTs = 0;
 
@@ -313,23 +369,177 @@ function parseFrames(view, header) {
       totalFrames += 1;
       offset = endOffset + 1;
     } catch {
+      issues.payloadReadErrors += 1;
       offset += 1;
       skippedBytes += 1;
     }
   }
 
-  return { totalFrames, skippedBytes };
+  return { totalFrames, skippedBytes, issues };
+}
+
+function appendFrameWarnings(warnings, frameStats) {
+  if (frameStats.skippedBytes > 0) {
+    warnings.push(`扫描数据帧时跳过 ${frameStats.skippedBytes} 字节，可能包含损坏、填充或未识别数据`);
+  }
+
+  if (frameStats.issues.unknownMessageIds.size > 0) {
+    const examples = Array.from(frameStats.issues.unknownMessageIds.entries())
+      .slice(0, 5)
+      .map(([id, count]) => `${id}(${count}次)`)
+      .join("，");
+    warnings.push(`发现未定义消息 ID：${examples}`);
+  }
+
+  if (frameStats.issues.badEndMarkers > 0) {
+    warnings.push(`发现 ${frameStats.issues.badEndMarkers} 个帧尾标记不匹配的数据段`);
+  }
+
+  if (frameStats.issues.truncatedFrames > 0) {
+    warnings.push(`发现 ${frameStats.issues.truncatedFrames} 个不完整数据帧，文件可能在写入过程中结束`);
+  }
+
+  if (frameStats.issues.payloadReadErrors > 0) {
+    warnings.push(`发现 ${frameStats.issues.payloadReadErrors} 个 payload 读取失败的数据帧`);
+  }
+}
+
+function computeDerivedTiming(result) {
+  const candidates = [];
+  const ranges = [];
+
+  for (const bus of result.buses) {
+    if (!bus.timestampField || bus.frames.length === 0) {
+      continue;
+    }
+
+    let first = null;
+    let min = null;
+    let max = null;
+    let samples = 0;
+
+    for (const frame of bus.frames) {
+      const timestamp = Number(frame[bus.timestampField]);
+      if (!Number.isFinite(timestamp)) {
+        continue;
+      }
+      first = first === null ? timestamp : first;
+      if (timestamp !== 0) {
+        min = min === null ? timestamp : Math.min(min, timestamp);
+        max = max === null ? timestamp : Math.max(max, timestamp);
+      }
+      samples += 1;
+    }
+
+    if (samples === 0) {
+      continue;
+    }
+
+    if (samples > 1 && first > 0) {
+      candidates.push(first);
+    }
+
+    if (min !== null && max !== null) {
+      ranges.push({
+        busId: bus.id,
+        busName: bus.name,
+        field: bus.timestampField,
+        first,
+        min,
+        max,
+        samples,
+      });
+    }
+  }
+
+  let globalTimestampStart = null;
+  let globalTimestampSource = "none";
+
+  if (candidates.length > 0) {
+    globalTimestampStart = Math.min(...candidates);
+    globalTimestampSource = "bus_first_sample";
+  } else if (result.timestamp > 0) {
+    globalTimestampStart = result.timestamp;
+    globalTimestampSource = "header_timestamp";
+  }
+
+  let minTimestamp = null;
+  let maxTimestamp = null;
+  if (ranges.length > 0) {
+    const range = numericRange(ranges.flatMap((item) => [item.min, item.max]));
+    minTimestamp = range.min;
+    maxTimestamp = range.max;
+  }
+
+  const durationMs =
+    minTimestamp !== null && maxTimestamp !== null ? Math.max(0, maxTimestamp - minTimestamp) : null;
+
+  return {
+    timestampRanges: ranges,
+    globalTimestampStart,
+    globalTimestampSource,
+    minTimestamp,
+    maxTimestamp,
+    durationMs,
+    headerTimestampMeaning: "systime_now_ms at log start",
+  };
+}
+
+function deriveRecordedInfo(result) {
+  return {
+    firmware: null,
+    kernel: null,
+    target: null,
+    vehicle: null,
+    airframe: findParamValue(result.paramGroups, "CONTROL", "AIRFRAME"),
+    modelInfoSections: parseModelInfoSections(result.modelInfo),
+  };
 }
 
 export function parseMlog(arrayBuffer) {
   const view = new DataView(arrayBuffer);
   const header = parseHeader(view);
   const frameStats = parseFrames(view, header);
-
-  return {
+  appendFrameWarnings(header.warnings, frameStats);
+  const baseResult = {
     ...header,
     totalFrames: frameStats.totalFrames,
     skippedBytes: frameStats.skippedBytes,
+  };
+  let timing = {
+    timestampRanges: [],
+    globalTimestampStart: null,
+    globalTimestampSource: "none",
+    minTimestamp: null,
+    maxTimestamp: null,
+    durationMs: null,
+    headerTimestampMeaning: "systime_now_ms at log start",
+  };
+  let recordedInfo = {
+    firmware: null,
+    kernel: null,
+    target: null,
+    vehicle: null,
+    airframe: null,
+    modelInfoSections: [],
+  };
+
+  try {
+    timing = computeDerivedTiming(baseResult);
+  } catch (error) {
+    baseResult.warnings.push(`日志时间摘要推导失败：${error.message}`);
+  }
+
+  try {
+    recordedInfo = deriveRecordedInfo(baseResult);
+  } catch (error) {
+    baseResult.warnings.push(`日志配置摘要推导失败：${error.message}`);
+  }
+
+  return {
+    ...baseResult,
+    ...timing,
+    recordedInfo,
   };
 }
 
@@ -365,13 +575,15 @@ export function collectChartSeries(result, limit = 6) {
       return bus.frames.some((frame) => typeof frame[field] === "number" && Number.isFinite(frame[field]));
     });
 
-    const xField = scalarFields.includes("timestamp") ? "timestamp" : null;
-    const candidates = scalarFields.filter((field) => field !== "timestamp");
+    const xField = bus.timestampField && scalarFields.includes(bus.timestampField) ? bus.timestampField : null;
+    const candidates = scalarFields.filter((field) => field !== xField);
 
     for (const field of candidates) {
       const points = bus.frames
         .map((frame, index) => ({
-          x: xField ? Number(frame[xField]) : index,
+          x: xField
+            ? (Number(frame[xField]) - (result.globalTimestampStart ?? Number(frame[xField]))) * 0.001
+            : index,
           y: Number(frame[field]),
         }))
         .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
@@ -390,7 +602,7 @@ export function collectChartSeries(result, limit = 6) {
         busId: bus.id,
         busName: bus.name || `msg_${bus.id}`,
         field,
-        xLabel: xField || "frame",
+        xLabel: xField ? "time_s" : "frame",
         points,
       });
 
