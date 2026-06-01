@@ -11,6 +11,7 @@
   --shadow: 0 8px 20px rgba(35, 50, 80, 0.07);
   --card-shadow: 0 6px 16px rgba(35, 50, 80, 0.05);
   --chart-pad: 12px;
+  --icon-blue: #8FC5FF; /* lighter action icon color */
   --chart-side-pad: 12px;
 }
 
@@ -689,6 +690,28 @@ button.cancel-transfer:hover {
   width: 74%;
   height: 74%;
   object-fit: contain;
+}
+
+/* tint inline SVG icons (those inserted as <svg>) to the theme icon color */
+.chart-actions .icon-button svg {
+  width: 74%;
+  height: 74%;
+  display: block;
+  color: var(--icon-blue);
+}
+
+/* enlarge the 2D/3D mode and interaction icons slightly */
+.chart-actions button[data-chart-action="toggle-trajectory-mode"] svg,
+.chart-actions button[data-chart-action="toggle-trajectory-mode"] img,
+.chart-actions button[data-chart-action="toggle-interaction-mode"] svg,
+.chart-actions button[data-chart-action="toggle-interaction-mode"] img {
+  width: 86%;
+  height: 86%;
+}
+
+/* apply icon color to inline SVG by making the button's color the icon color */
+.chart-actions .icon-button {
+  color: var(--icon-blue);
 }
 
 /* Reduce horizontal whitespace around icon buttons */

@@ -88,6 +88,28 @@ function makeAbortError() {
   return error;
 }
 
+// Inline an SVG asset into a button so CSS `color` can tint it via `currentColor`.
+const __ICON_CACHE = {};
+async function inlineSvgIcon(button, name) {
+  if (!button) return;
+  const path = `assets/icons/${name}.svg`;
+  try {
+    let svg = __ICON_CACHE[path];
+    if (!svg) {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`Failed to load ${path}`);
+      svg = await res.text();
+      // replace hardcoded fills with currentColor so CSS `color` controls the fill
+      svg = svg.replace(/fill="#[0-9a-fA-F]{3,6}"/g, 'fill="currentColor"');
+      __ICON_CACHE[path] = svg;
+    }
+    button.innerHTML = svg;
+  } catch (e) {
+    // fallback to img if inline fails
+    button.innerHTML = `<img src="${path}" alt="${name}">`;
+  }
+}
+
 function isAbortError(error) {
   return error?.name === "AbortError";
 }
@@ -1033,34 +1055,34 @@ function renderTrajectoryPlot(points) {
     setupWheelZoom(plot, mode);
     // attach 3D axis tick autoscale when in 3D (and remove when switching to 2D)
     setup3DAxisTickAutoscale(plot, mode);
-    // set button icons from assets/icons
+    // set button icons from assets/icons. Inline the primary two so CSS can tint/scale them.
     const iconPath = (name) => `assets/icons/${name}.svg`;
     if (modeButton) {
-      // show the target mode on the button: when currently 3D, show 2D icon (meaning 'switch to 2D')
       const name = mode === '3d' ? '2d' : '3d';
-      modeButton.innerHTML = `<img src="${iconPath(name)}" alt="${name}">`;
+      // inline so CSS `color` / `currentColor` can tint it
+      inlineSvgIcon(modeButton, name);
       modeButton.title = mode === '3d' ? '切换二维' : '切换三维';
     }
     if (interactionButton) {
-      // show the target interaction: when currently 'pan', show 'zoom' icon (meaning 'switch to zoom')
       const name = interactionMode === 'pan' ? 'zoom' : 'pan';
-      interactionButton.innerHTML = `<img src="${iconPath(name)}" alt="${name}">`;
+      inlineSvgIcon(interactionButton, name);
       interactionButton.title = interactionMode === 'pan' ? '切换到缩放' : '切换到平移';
     }
     if (resetButton) {
-      resetButton.innerHTML = `<img src="${iconPath('reset')}" alt="reset">`;
+      // Inline at runtime so CSS `color` controls the SVG fill without editing files
+      inlineSvgIcon(resetButton, 'reset');
       resetButton.title = '复位视图';
     }
     if (expandButton) {
-      expandButton.innerHTML = `<img src="${iconPath('full')}" alt="full">`;
+      inlineSvgIcon(expandButton, 'full');
       expandButton.title = '展开图片';
     }
     if (downloadButton) {
-      downloadButton.innerHTML = `<img src="${iconPath('download')}" alt="download">`;
+      inlineSvgIcon(downloadButton, 'download');
       downloadButton.title = '下载图片';
     }
     if (downloadCsvButton) {
-      downloadCsvButton.innerHTML = `<img src="${iconPath('csv')}" alt="csv">`;
+      inlineSvgIcon(downloadCsvButton, 'csv');
       downloadCsvButton.title = '下载数据 CSV';
     }
     if (subtitle) {
@@ -1091,10 +1113,10 @@ function renderTrajectoryPlot(points) {
     }
     // Update the interaction button icon/title in-place (show target mode)
     try {
-      const iconPath = (name) => `assets/icons/${name}.svg`;
       const name = interactionMode === 'pan' ? 'zoom' : 'pan';
       if (interactionButton) {
-        interactionButton.innerHTML = `<img src="${iconPath(name)}" alt="${name}">`;
+        // inline so CSS `color` applies even when not modifying the SVG files
+        inlineSvgIcon(interactionButton, name);
         interactionButton.title = interactionMode === 'pan' ? '切换到缩放' : '切换到平移';
       }
     } catch (e) {}
