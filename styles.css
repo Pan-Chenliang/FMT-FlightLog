@@ -343,6 +343,87 @@ th {
   font-weight: 400;
 }
 
+.param-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.param-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+  overflow: hidden;
+}
+
+.param-group summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.param-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.param-group summary::before {
+  content: "▸";
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.param-group[open] summary::before {
+  content: "▾";
+}
+
+.param-group-name {
+  min-width: 0;
+  color: var(--text);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+.param-group-count {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.param-grid {
+  border-top: 1px solid var(--line);
+}
+
+.param-grid-head,
+.param-grid-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 230px) minmax(100px, 180px) 84px minmax(0, 1fr);
+  column-gap: 22px;
+  padding: 6px 10px;
+  align-items: center;
+}
+
+.param-grid-head {
+  color: var(--muted);
+  font-size: 12px;
+  background: #f5f8fc;
+}
+
+.param-grid-row {
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.param-grid-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

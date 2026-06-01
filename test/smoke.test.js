@@ -192,6 +192,7 @@ const bytesWithAirframeParam = [
 const airframeResult = parseMlog(new Uint8Array(bytesWithAirframeParam).buffer);
 assert.equal(airframeResult.recordedInfo.airframe, 7);
 assert.equal(airframeResult.recordedInfo.firmware, null);
+assert.equal(airframeResult.paramGroups[0].params[0].value, 7);
 
 const bytesWithFrameIssues = [
   ...u16(2),

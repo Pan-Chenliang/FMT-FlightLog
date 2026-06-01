@@ -402,6 +402,16 @@ function formatValue(value) {
   return String(value);
 }
 
+function formatParamValue(param) {
+  if (param.value === undefined || param.value === null || param.value === "") {
+    return "-";
+  }
+  if (param.typeName === "FLOAT" && typeof param.value === "number" && Number.isFinite(param.value)) {
+    return Number(param.value.toPrecision(7)).toString();
+  }
+  return String(param.value);
+}
+
 function formatDurationMs(value) {
   if (!Number.isFinite(value)) {
     return "-";
@@ -488,25 +498,39 @@ function renderBusTable(result) {
 
 function renderParamTable(result) {
   if (result.paramGroups.length === 0) {
-    paramTable.innerHTML = '<tr><td colspan="3">未找到参数组</td></tr>';
+    paramTable.innerHTML = '<div class="empty-state">未找到参数组</div>';
     return;
   }
 
   paramTable.innerHTML = result.paramGroups
-    .map((group) => {
-      const examples = group.params
-        .slice(0, 5)
-        .map((param) => `${param.name || "(空名称)"}=${formatValue(param.value)} (${param.typeName})`)
-        .join("，");
-
-      return `
-        <tr>
-          <td>${escapeHtml(group.name || "-")}</td>
-          <td>${group.params.length}</td>
-          <td>${escapeHtml(examples || "-")}</td>
-        </tr>
-      `;
-    })
+    .map(
+      (group) => `
+        <details class="param-group">
+          <summary>
+            <span class="param-group-name">${escapeHtml(group.name || "-")}</span>
+            <span class="param-group-count">${group.params.length} 个参数</span>
+          </summary>
+          <div class="param-grid" role="table" aria-label="${escapeHtml(group.name || "参数组")}">
+            <div class="param-grid-head" role="row">
+              <span role="columnheader">名称</span>
+              <span role="columnheader">值</span>
+              <span role="columnheader">类型</span>
+            </div>
+            ${group.params
+              .map(
+                (param) => `
+                  <div class="param-grid-row" role="row">
+                    <span role="cell">${escapeHtml(param.name || "(空名称)")}</span>
+                    <span role="cell">${escapeHtml(formatParamValue(param))}</span>
+                    <span role="cell">${escapeHtml(param.typeName || `TYPE_${param.type}`)}</span>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </details>
+      `,
+    )
     .join("");
 }
 
