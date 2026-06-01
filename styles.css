@@ -378,6 +378,18 @@ th {
   content: "▾";
 }
 
+/* Make the triangle marker larger and better aligned */
+.param-group summary::before {
+  font-size: 22px;
+  line-height: 1;
+  margin-right: 0px;
+  transform-origin: center;
+}
+
+.param-group[open] summary::before {
+  font-size: 22px;
+}
+
 .param-group-name {
   min-width: 0;
   color: var(--text);
@@ -404,7 +416,7 @@ th {
   display: grid;
   grid-template-columns: minmax(130px, 230px) minmax(100px, 180px) 84px minmax(0, 1fr);
   column-gap: 22px;
-  padding: 6px 10px;
+  padding: 6px 10px 6px 40px; /* left padding increased to align with summary title */
   align-items: center;
 }
 
