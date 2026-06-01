@@ -93,6 +93,78 @@ const poseTimeSeriesCharts = [
   { id: "yaw-rate", title: "偏航角速度", field: "r", unit: "rad/s" },
 ];
 
+const ioTimeSeriesCharts = [
+  { id: "pilot-stick-roll", busName: "Pilot_Cmd", title: "摇杆滚转输入", field: "stick_roll", unit: "" },
+  { id: "pilot-stick-pitch", busName: "Pilot_Cmd", title: "摇杆俯仰输入", field: "stick_pitch", unit: "" },
+  { id: "pilot-stick-yaw", busName: "Pilot_Cmd", title: "摇杆偏航输入", field: "stick_yaw", unit: "" },
+  { id: "pilot-stick-throttle", busName: "Pilot_Cmd", title: "摇杆油门输入", field: "stick_throttle", unit: "" },
+  { id: "pilot-mode", busName: "Pilot_Cmd", title: "飞手模式", field: "mode", unit: "" },
+  { id: "gcs-mode", busName: "GCS_Cmd", title: "地面站模式", field: "mode", unit: "" },
+  { id: "gcs-command-1", busName: "GCS_Cmd", title: "地面站指令1", field: "cmd_1", unit: "" },
+  { id: "gcs-command-2", busName: "GCS_Cmd", title: "地面站指令2", field: "cmd_2", unit: "" },
+  { id: "fms-roll-command", busName: "FMS_Out", title: "滚转指令", field: "phi_cmd", unit: "rad" },
+  { id: "fms-pitch-command", busName: "FMS_Out", title: "俯仰指令", field: "theta_cmd", unit: "rad" },
+  { id: "fms-yaw-rate-command", busName: "FMS_Out", title: "偏航角速度指令", field: "psi_rate_cmd", unit: "rad/s" },
+  { id: "fms-forward-speed-command", busName: "FMS_Out", title: "前向速度指令", field: "u_cmd", unit: "m/s" },
+  { id: "fms-right-speed-command", busName: "FMS_Out", title: "右向速度指令", field: "v_cmd", unit: "m/s" },
+  { id: "fms-down-speed-command", busName: "FMS_Out", title: "下向速度指令", field: "w_cmd", unit: "m/s" },
+  { id: "fms-throttle-command", busName: "FMS_Out", title: "油门指令", field: "throttle_cmd", unit: "" },
+  { id: "fms-state", busName: "FMS_Out", title: "飞行状态", field: "state", unit: "" },
+  { id: "control-actuator-1", busName: "Control_Out", title: "控制输出1", field: "actuator_cmd[0]", unit: "" },
+  { id: "control-actuator-2", busName: "Control_Out", title: "控制输出2", field: "actuator_cmd[1]", unit: "" },
+  { id: "control-actuator-3", busName: "Control_Out", title: "控制输出3", field: "actuator_cmd[2]", unit: "" },
+  { id: "control-actuator-4", busName: "Control_Out", title: "控制输出4", field: "actuator_cmd[3]", unit: "" },
+];
+
+const sensorTimeSeriesCharts = [
+  { id: "imu-gyr-x", busName: "IMU", title: "陀螺仪X", field: "gyr_x", unit: "rad/s" },
+  { id: "imu-gyr-y", busName: "IMU", title: "陀螺仪Y", field: "gyr_y", unit: "rad/s" },
+  { id: "imu-gyr-z", busName: "IMU", title: "陀螺仪Z", field: "gyr_z", unit: "rad/s" },
+  { id: "imu-acc-x", busName: "IMU", title: "加速度计X", field: "acc_x", unit: "m/s²" },
+  { id: "imu-acc-y", busName: "IMU", title: "加速度计Y", field: "acc_y", unit: "m/s²" },
+  { id: "imu-acc-z", busName: "IMU", title: "加速度计Z", field: "acc_z", unit: "m/s²" },
+  { id: "mag-x", busName: "MAG", title: "磁力计X", field: "mag_x", unit: "gauss" },
+  { id: "mag-y", busName: "MAG", title: "磁力计Y", field: "mag_y", unit: "gauss" },
+  { id: "mag-z", busName: "MAG", title: "磁力计Z", field: "mag_z", unit: "gauss" },
+  { id: "barometer-pressure", busName: "Barometer", title: "气压", field: "pressure", unit: "Pa" },
+  { id: "barometer-temperature", busName: "Barometer", title: "气压计温度", field: "temperature", unit: "deg" },
+  { id: "airspeed-diff-pressure", busName: "AirSpeed", title: "空速差压", field: "diff_pressure", unit: "Pa" },
+  { id: "airspeed-temperature", busName: "AirSpeed", title: "空速计温度", field: "temperature", unit: "degC" },
+  { id: "rangefinder-distance", busName: "Rangefinder", title: "测距仪距离", field: "distance", unit: "m" },
+  { id: "optical-flow-vx", busName: "Optical_Flow", title: "光流速度X", field: "vx", unit: "m/s" },
+  { id: "optical-flow-vy", busName: "Optical_Flow", title: "光流速度Y", field: "vy", unit: "m/s" },
+  { id: "optical-flow-quality", busName: "Optical_Flow", title: "光流质量", field: "quality", unit: "" },
+  { id: "gps-fix-type", busName: "GPS_uBlox", title: "GPS定位类型", field: "fixType", unit: "" },
+  { id: "gps-satellite-count", busName: "GPS_uBlox", title: "GPS卫星数", field: "numSV", unit: "" },
+  { id: "gps-height", busName: "GPS_uBlox", title: "GPS高度", field: "height", unit: "m", scale: 0.001 },
+  { id: "gps-horizontal-accuracy", busName: "GPS_uBlox", title: "GPS水平精度", field: "hAcc", unit: "m", scale: 0.001 },
+  { id: "gps-vertical-accuracy", busName: "GPS_uBlox", title: "GPS垂直精度", field: "vAcc", unit: "m", scale: 0.001 },
+  { id: "gps-north-speed", busName: "GPS_uBlox", title: "GPS北向速度", field: "velN", unit: "m/s", scale: 0.001 },
+  { id: "gps-east-speed", busName: "GPS_uBlox", title: "GPS东向速度", field: "velE", unit: "m/s", scale: 0.001 },
+  { id: "gps-down-speed", busName: "GPS_uBlox", title: "GPS地向速度", field: "velD", unit: "m/s", scale: 0.001 },
+  { id: "gps-ground-speed", busName: "GPS_uBlox", title: "GPS地速", field: "gSpeed", unit: "m/s", scale: 0.001 },
+];
+
+const powerTimeSeriesCharts = [
+  { id: "battery-voltage", busName: "BATTERY", title: "电池电压", field: "voltage", unit: "V", scale: 0.001 },
+  { id: "battery-current", busName: "BATTERY", title: "电池电流", field: "current", unit: "A", scale: 0.001 },
+  { id: "battery-remaining", busName: "BATTERY", title: "剩余电量", field: "remaining", unit: "%" },
+  { id: "battery-remaining-current", busName: "BATTERY", title: "电流估算电量", field: "remaining_c", unit: "%" },
+  { id: "battery-remaining-voltage", busName: "BATTERY", title: "电压估算电量", field: "remaining_v", unit: "%" },
+  { id: "battery-health", busName: "BATTERY", title: "电池健康度", field: "SOH", unit: "%" },
+  { id: "battery-cell-voltage", busName: "BATTERY", title: "单节电压", field: "cvoltage", unit: "V" },
+  { id: "battery-cell-voltage-original", busName: "BATTERY", title: "原始单节电压", field: "cvoltage_orin", unit: "V" },
+  { id: "battery-resistance", busName: "BATTERY", title: "内阻", field: "resistance", unit: "Ω" },
+  { id: "battery-connected", busName: "BATTERY", title: "电池连接状态", field: "connected", unit: "" },
+];
+
+const moduleTimeSeriesCharts = {
+  pose: poseTimeSeriesCharts,
+  io: ioTimeSeriesCharts,
+  sensors: sensorTimeSeriesCharts,
+  power: powerTimeSeriesCharts,
+};
+
 let currentLanguage = "zh";
 let selectedFlightControllerPort = null;
 let mavlinkFtpClient = null;
@@ -478,6 +550,10 @@ function formatValue(value) {
   return String(value);
 }
 
+function makeChartFileStem(chart) {
+  return `${chart.busName || trajectoryConfig.busName}_${chart.field}`.replace(/[^\w.-]+/gu, "_");
+}
+
 function formatParamValue(param) {
   if (param.value === undefined || param.value === null || param.value === "") {
     return "-";
@@ -649,35 +725,37 @@ function collectTrajectoryPoints(result) {
 }
 
 function collectTimeSeriesPoints(result, chart) {
-  const bus = result.buses.find((candidate) => candidate.name === trajectoryConfig.busName);
+  const busName = chart.busName || trajectoryConfig.busName;
+  const bus = result.buses.find((candidate) => candidate.name === busName);
   if (!bus) {
     return {
-      error: `没有找到 ${trajectoryConfig.busName} 消息，无法绘制${chart.title}。`,
+      error: `没有找到 ${busName} 消息，无法绘制${chart.title}。`,
     };
   }
 
   if (!bus.fields.includes(chart.field)) {
     return {
-      error: `${trajectoryConfig.busName} 缺少字段：${chart.field}。`,
+      error: `${busName} 缺少字段：${chart.field}。`,
     };
   }
 
   const timestampField = bus.timestampField && bus.fields.includes(bus.timestampField) ? bus.timestampField : null;
+  const scale = Number.isFinite(chart.scale) ? chart.scale : 1;
   const points = bus.frames
     .map((frame, index) => ({
       index,
       timeSeconds: timestampField && Number.isFinite(Number(frame[timestampField])) ? Number(frame[timestampField]) * 0.001 : index,
-      value: Number(frame[chart.field]),
+      value: Number(frame[chart.field]) * scale,
     }))
     .filter((point) => Number.isFinite(point.timeSeconds) && Number.isFinite(point.value));
 
   if (points.length < 2) {
     return {
-      error: `${trajectoryConfig.busName}.${chart.field} 有效数据点不足。`,
+      error: `${busName}.${chart.field} 有效数据点不足。`,
     };
   }
 
-  return { chart, points };
+  return { chart: { ...chart, busName }, points };
 }
 
 function getDefaultTrajectoryCamera() {
@@ -1495,7 +1573,7 @@ function renderTimeSeriesPlot(series) {
   downloadButton?.addEventListener("click", () => {
     window.Plotly.downloadImage(plot, {
       format: "png",
-      filename: `INS_Out_${chart.field}`,
+      filename: makeChartFileStem(chart),
       width: 1400,
       height: 600,
     });
@@ -1510,7 +1588,7 @@ function renderTimeSeriesPlot(series) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `INS_Out_${chart.field}.csv`;
+      a.download = `${makeChartFileStem(chart)}.csv`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
@@ -1624,14 +1702,15 @@ function renderTimeSeriesFigure(series) {
   }
 
   const { chart, points } = series;
+  const sourceLabel = `${chart.busName || trajectoryConfig.busName}.${chart.field}`;
   return `
     <article class="chart-figure">
       <div class="chart-figure-main">
         <div class="chart-title">
           <span>${escapeHtml(chart.title)}</span>
-          <small>曲线 · INS_Out.${escapeHtml(chart.field)} · ${points.length} 点</small>
+          <small>曲线 · ${escapeHtml(sourceLabel)} · ${points.length} 点</small>
         </div>
-        <div class="plotly-chart plotly-chart-compact" id="${escapeHtml(chart.id)}Plot" aria-label="INS_Out ${escapeHtml(chart.title)}曲线"></div>
+        <div class="plotly-chart plotly-chart-compact" id="${escapeHtml(chart.id)}Plot" aria-label="${escapeHtml(sourceLabel)} ${escapeHtml(chart.title)}曲线"></div>
       </div>
       <div class="chart-actions" aria-label="${escapeHtml(chart.title)}图操作">
         <button class="icon-button" type="button" data-chart-action="toggle-${escapeHtml(chart.id)}-interaction" aria-label="切换 平移/缩放"></button>
@@ -1644,12 +1723,17 @@ function renderTimeSeriesFigure(series) {
   `;
 }
 
-function renderModuleContent(module, trajectory, timeSeries) {
+function renderModuleContent(module, trajectory, moduleTimeSeries) {
+  const timeSeries = moduleTimeSeries[module.id] || [];
   if (module.id === "pose") {
     return `${renderTrajectoryFigure(trajectory)}${timeSeries.map(renderTimeSeriesFigure).join("")}`;
   }
 
-  return '<div class="chart-module-empty">图表待添加</div>';
+  if (timeSeries.length === 0) {
+    return '<div class="chart-module-empty">图表待添加</div>';
+  }
+
+  return timeSeries.map(renderTimeSeriesFigure).join("");
 }
 
 function resizePlotsIn(container) {
@@ -1683,7 +1767,12 @@ function setupChartModuleCollapse() {
 
 function renderCharts(result) {
   const trajectory = collectTrajectoryPoints(result);
-  const timeSeries = poseTimeSeriesCharts.map((chart) => collectTimeSeriesPoints(result, chart));
+  const moduleTimeSeries = Object.fromEntries(
+    Object.entries(moduleTimeSeriesCharts).map(([moduleId, charts]) => [
+      moduleId,
+      charts.map((chart) => collectTimeSeriesPoints(result, chart)),
+    ]),
+  );
 
   chartGrid.innerHTML = chartModules
     .map(
@@ -1697,7 +1786,7 @@ function renderCharts(result) {
             </div>
           </button>
           <div class="chart-stack" hidden>
-            ${renderModuleContent(module, trajectory, timeSeries)}
+            ${renderModuleContent(module, trajectory, moduleTimeSeries)}
           </div>
         </section>
       `,
@@ -1710,7 +1799,10 @@ function renderCharts(result) {
     });
   }
   requestAnimationFrame(() => {
-    timeSeries.filter((series) => !series.error).forEach(renderTimeSeriesPlot);
+    Object.values(moduleTimeSeries)
+      .flat()
+      .filter((series) => !series.error)
+      .forEach(renderTimeSeriesPlot);
     setupChartModuleCollapse();
   });
 }
