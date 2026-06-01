@@ -34,6 +34,7 @@ const paramTable = document.querySelector("#paramTable");
 const chartGrid = document.querySelector("#chartGrid");
 const chartDialog = document.querySelector("#chartDialog");
 const closeChartDialog = document.querySelector("#closeChartDialog");
+const chartDialogTitle = document.querySelector("#chartDialogTitle");
 const chartDialogPlot = document.querySelector("#chartDialogPlot");
 const chartDialogMode = document.querySelector("#chartDialogMode");
 const chartDialogInteraction = document.querySelector("#chartDialogInteraction");
@@ -629,6 +630,38 @@ function collectTrajectoryPoints(result) {
   return { points };
 }
 
+function collectAltitudePoints(result) {
+  const bus = result.buses.find((candidate) => candidate.name === trajectoryConfig.busName);
+  if (!bus) {
+    return {
+      error: `没有找到 ${trajectoryConfig.busName} 消息，无法绘制高度。`,
+    };
+  }
+
+  if (!bus.fields.includes(trajectoryConfig.zField)) {
+    return {
+      error: `${trajectoryConfig.busName} 缺少字段：${trajectoryConfig.zField}。`,
+    };
+  }
+
+  const timestampField = bus.timestampField && bus.fields.includes(bus.timestampField) ? bus.timestampField : null;
+  const points = bus.frames
+    .map((frame, index) => ({
+      index,
+      timeSeconds: timestampField && Number.isFinite(Number(frame[timestampField])) ? Number(frame[timestampField]) * 0.001 : index,
+      value: Number(frame[trajectoryConfig.zField]),
+    }))
+    .filter((point) => Number.isFinite(point.timeSeconds) && Number.isFinite(point.value));
+
+  if (points.length < 2) {
+    return {
+      error: `${trajectoryConfig.busName}.${trajectoryConfig.zField} 有效数据点不足。`,
+    };
+  }
+
+  return { points };
+}
+
 function getDefaultTrajectoryCamera() {
   return {
     eye: { x: 1.55, y: 1.65, z: 1.15 },
@@ -657,6 +690,29 @@ function getPaddedRange(values, paddingRatio = 0.06) {
 
   const padding = (max - min) * paddingRatio;
   return [min - padding, max + padding];
+}
+
+function getTightRange(values) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const value of values) {
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+  }
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return [-1, 1];
+  }
+
+  if (min === max) {
+    const fallbackPadding = Math.max(1, Math.abs(min) * 0.01);
+    return [min - fallbackPadding, max + fallbackPadding];
+  }
+
+  return [min, max];
 }
 
 // Choose a "nice" tick step for an axis span so labels are round numbers
@@ -1021,6 +1077,76 @@ function createTrajectoryPlotSpec(points, mode) {
   };
 }
 
+function createAltitudePlotSpec(points) {
+  const time = points.map((point) => point.timeSeconds);
+  const values = points.map((point) => point.value);
+  const pointMeta = points.map((point) => [point.index, point.timeSeconds]);
+  const commonFont = {
+    family: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    color: "#172033",
+  };
+  const hoverlabel = {
+    bgcolor: "rgba(248, 250, 252, 0.52)",
+    bordercolor: "rgba(148, 163, 184, 0.28)",
+    font: { color: "#172033", size: 12 },
+  };
+  const legend = {
+    x: 0.99,
+    y: 0.99,
+    xanchor: "right",
+    yanchor: "top",
+    bgcolor: "rgba(248, 250, 252, 0.68)",
+    bordercolor: "rgba(148, 163, 184, 0.38)",
+    borderwidth: 1,
+    font: { color: "#172033", size: 12 },
+    itemwidth: 30,
+    itemsizing: "constant",
+  };
+
+  return {
+    traces: [
+      {
+        type: "scatter",
+        mode: "lines",
+        name: "高度",
+        x: time,
+        y: values,
+        customdata: pointMeta,
+        line: { color: "#1d5fd1", width: 2.5 },
+        hoverlabel,
+        hovertemplate:
+          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>h_R: %{y:.3f} m<extra></extra>",
+      },
+    ],
+    layout: {
+      autosize: true,
+      margin: { l: 42, r: 12, t: 12, b: 36 },
+      paper_bgcolor: "#fbfcff",
+      plot_bgcolor: "#fbfcff",
+      dragmode: "pan",
+      font: commonFont,
+      hoverlabel,
+      legend,
+      xaxis: {
+        title: "time",
+        range: getTightRange(time),
+        gridcolor: "#dbe2ec",
+        zerolinecolor: "#94a3b8",
+        ticksuffix: " s",
+        automargin: true,
+      },
+      yaxis: {
+        title: "h_R",
+        range: getPaddedRange(values),
+        gridcolor: "#dbe2ec",
+        zerolinecolor: "#94a3b8",
+        ticksuffix: " m",
+        automargin: true,
+      },
+    },
+  };
+}
+
 function applyTrajectoryInteraction(plot, mode, interactionMode) {
   const dragmode = interactionMode === "pan" ? "pan" : "zoom";
   if (mode === "2d") {
@@ -1036,6 +1162,14 @@ function applyTrajectoryInteraction(plot, mode, interactionMode) {
     window.Plotly.relayout(plot, { "scene.dragmode": dragmode });
   } catch (error) {
     // 3D dragmode support varies by Plotly version; keep default interaction if unavailable.
+  }
+}
+
+function apply2DInteraction(plot, interactionMode) {
+  try {
+    window.Plotly.relayout(plot, { dragmode: interactionMode === "pan" ? "pan" : "zoom" });
+  } catch (error) {
+    // Ignore Plotly relayout timing errors.
   }
 }
 
@@ -1055,11 +1189,37 @@ function renderTrajectoryPlotTo(plot, points, mode, interactionMode) {
   setup3DAxisTickAutoscale(plot, mode);
 }
 
+function renderAltitudePlotTo(plot, points, interactionMode) {
+  const spec = createAltitudePlotSpec(points);
+  const config = {
+    displayModeBar: false,
+    displaylogo: false,
+    responsive: true,
+    scrollZoom: false,
+  };
+
+  window.Plotly.purge(plot);
+  window.Plotly.newPlot(plot, spec.traces, spec.layout, config);
+  apply2DInteraction(plot, interactionMode);
+  setupWheelZoom(plot, "2d");
+}
+
 function updateTrajectoryControlIcons({ modeButton, interactionButton, resetButton, mode, interactionMode }) {
   if (modeButton) {
     inlineSvgIcon(modeButton, mode === "3d" ? "2d" : "3d");
     modeButton.title = mode === "3d" ? "切换二维" : "切换三维";
   }
+  if (interactionButton) {
+    inlineSvgIcon(interactionButton, interactionMode === "pan" ? "zoom" : "pan");
+    interactionButton.title = interactionMode === "pan" ? "切换到缩放" : "切换到平移";
+  }
+  if (resetButton) {
+    inlineSvgIcon(resetButton, "reset");
+    resetButton.title = "复位视图";
+  }
+}
+
+function update2DControlIcons({ interactionButton, resetButton, interactionMode }) {
   if (interactionButton) {
     inlineSvgIcon(interactionButton, interactionMode === "pan" ? "zoom" : "pan");
     interactionButton.title = interactionMode === "pan" ? "切换到缩放" : "切换到平移";
@@ -1077,6 +1237,12 @@ function openTrajectoryDialog(points, initialMode, initialInteractionMode) {
 
   let dialogMode = initialMode;
   let dialogInteractionMode = initialInteractionMode;
+  if (chartDialogTitle) {
+    chartDialogTitle.textContent = "航迹";
+  }
+  if (chartDialogMode) {
+    chartDialogMode.hidden = false;
+  }
 
   const drawDialog = () => {
     renderTrajectoryPlotTo(chartDialogPlot, points, dialogMode, dialogInteractionMode);
@@ -1101,6 +1267,46 @@ function openTrajectoryDialog(points, initialMode, initialInteractionMode) {
       interactionButton: chartDialogInteraction,
       resetButton: chartDialogReset,
       mode: dialogMode,
+      interactionMode: dialogInteractionMode,
+    });
+  };
+  chartDialogReset.onclick = () => {
+    drawDialog();
+  };
+
+  chartDialog.showModal();
+  requestAnimationFrame(drawDialog);
+}
+
+function openAltitudeDialog(points, initialInteractionMode) {
+  if (!chartDialog || !chartDialogPlot || !window.Plotly) {
+    return;
+  }
+
+  let dialogInteractionMode = initialInteractionMode;
+  if (chartDialogTitle) {
+    chartDialogTitle.textContent = "高度";
+  }
+  if (chartDialogMode) {
+    chartDialogMode.hidden = true;
+    chartDialogMode.onclick = null;
+  }
+
+  const drawDialog = () => {
+    renderAltitudePlotTo(chartDialogPlot, points, dialogInteractionMode);
+    update2DControlIcons({
+      interactionButton: chartDialogInteraction,
+      resetButton: chartDialogReset,
+      interactionMode: dialogInteractionMode,
+    });
+  };
+
+  chartDialogInteraction.onclick = () => {
+    dialogInteractionMode = dialogInteractionMode === "pan" ? "zoom" : "pan";
+    apply2DInteraction(chartDialogPlot, dialogInteractionMode);
+    update2DControlIcons({
+      interactionButton: chartDialogInteraction,
+      resetButton: chartDialogReset,
       interactionMode: dialogInteractionMode,
     });
   };
@@ -1216,32 +1422,105 @@ function renderTrajectoryPlot(points) {
   draw();
 }
 
+function renderAltitudePlot(points) {
+  const plot = document.querySelector("#altitudePlot");
+  const interactionButton = document.querySelector('[data-chart-action="toggle-altitude-interaction"]');
+  const resetButton = document.querySelector('[data-chart-action="reset-altitude-view"]');
+  const expandButton = document.querySelector('[data-chart-action="open-altitude-dialog"]');
+  const downloadButton = document.querySelector('[data-chart-action="download-altitude-image"]');
+  const downloadCsvButton = document.querySelector('[data-chart-action="download-altitude-csv"]');
+  if (!plot) {
+    return;
+  }
+
+  if (!window.Plotly) {
+    plot.innerHTML = '<div class="chart-module-empty">Plotly.js 加载失败，无法显示高度图。</div>';
+    return;
+  }
+
+  let interactionMode = "pan";
+
+  const draw = () => {
+    renderAltitudePlotTo(plot, points, interactionMode);
+    update2DControlIcons({ interactionButton, resetButton, interactionMode });
+    if (expandButton) {
+      inlineSvgIcon(expandButton, "full");
+      expandButton.title = "展开图片";
+    }
+    if (downloadButton) {
+      inlineSvgIcon(downloadButton, "download");
+      downloadButton.title = "下载图片";
+    }
+    if (downloadCsvButton) {
+      inlineSvgIcon(downloadCsvButton, "csv");
+      downloadCsvButton.title = "下载数据 CSV";
+    }
+  };
+
+  interactionButton?.addEventListener("click", () => {
+    interactionMode = interactionMode === "pan" ? "zoom" : "pan";
+    apply2DInteraction(plot, interactionMode);
+    update2DControlIcons({ interactionButton, resetButton, interactionMode });
+  });
+
+  resetButton?.addEventListener("click", () => {
+    draw();
+  });
+
+  expandButton?.addEventListener("click", () => {
+    openAltitudeDialog(points, interactionMode);
+  });
+
+  downloadButton?.addEventListener("click", () => {
+    window.Plotly.downloadImage(plot, {
+      format: "png",
+      filename: "INS_Out_altitude",
+      width: 1400,
+      height: 600,
+    });
+  });
+
+  downloadCsvButton?.addEventListener("click", () => {
+    try {
+      const header = ["index", "timeSeconds", "h_R"];
+      const rows = points.map((point) => [point.index, point.timeSeconds, point.value]);
+      const csv = [header.join(","), ...rows.map((row) => row.join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "INS_Out_altitude.csv";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.warn("导出高度 CSV 失败", error);
+    }
+  });
+
+  draw();
+}
+
 // Controlled wheel zoom for 2D plots: throttled, centered at cursor, uses Plotly.relayout
-let _wheelZoomState = { attached: false };
+const _wheelZoomState = new WeakMap();
 function setupWheelZoom(gd, currentMode) {
+  const existing = _wheelZoomState.get(gd);
   // If not in 2D mode, remove any existing handler for this graph and return
   if (currentMode !== '2d') {
-    if (_wheelZoomState.attached && _wheelZoomState.gd === gd) {
+    if (existing) {
       try {
-        _wheelZoomState.gd.removeEventListener('wheel', _wheelZoomState.handler, { passive: false });
+        gd.removeEventListener('wheel', existing.handler, { passive: false });
       } catch (err) {
         // ignore
       }
-      _wheelZoomState = { attached: false };
+      _wheelZoomState.delete(gd);
     }
     return;
   }
 
   // If already attached to this graph, do nothing
-  if (_wheelZoomState.attached && _wheelZoomState.gd === gd) return;
+  if (existing) return;
 
-  // If attached to a different graph, remove it first
-  if (_wheelZoomState.attached && _wheelZoomState.gd && _wheelZoomState.gd !== gd) {
-    try {
-      _wheelZoomState.gd.removeEventListener('wheel', _wheelZoomState.handler, { passive: false });
-    } catch (err) {}
-    _wheelZoomState = { attached: false };
-  }
+  const state = { queued: null, handler: null };
 
   // attach
   const handler = (ev) => {
@@ -1274,21 +1553,22 @@ function setupWheelZoom(gd, currentMode) {
     const yCenter = yStart + cy * (yEnd - yStart);
     const newX = [xCenter - cx * newXSpan, xCenter + (1 - cx) * newXSpan];
     const newY = [yCenter - cy * newYSpan, yCenter + (1 - cy) * newYSpan];
-    if (_wheelZoomState.queued) {
-      _wheelZoomState.queued = { newX, newY };
+    if (state.queued) {
+      state.queued = { newX, newY };
       return;
     }
-    _wheelZoomState.queued = { newX, newY };
+    state.queued = { newX, newY };
     requestAnimationFrame(() => {
-      const q = _wheelZoomState.queued;
+      const q = state.queued;
       if (q) {
         window.Plotly.relayout(gd, { 'xaxis.range': q.newX, 'yaxis.range': q.newY });
       }
-      _wheelZoomState.queued = null;
+      state.queued = null;
     });
   };
+  state.handler = handler;
   gd.addEventListener('wheel', handler, { passive: false });
-  _wheelZoomState = { attached: true, gd, handler, queued: null };
+  _wheelZoomState.set(gd, state);
 }
 
 function renderTrajectoryFigure(trajectory) {
@@ -1317,9 +1597,34 @@ function renderTrajectoryFigure(trajectory) {
   `;
 }
 
-function renderModuleContent(module, trajectory) {
+function renderAltitudeFigure(altitude) {
+  if (altitude.error) {
+    return `<div class="chart-module-empty">${escapeHtml(altitude.error)}</div>`;
+  }
+
+  return `
+    <article class="chart-figure">
+      <div class="chart-figure-main">
+        <div class="chart-title">
+          <span>高度</span>
+          <small>曲线 · INS_Out.h_R · ${altitude.points.length} 点</small>
+        </div>
+        <div class="plotly-chart plotly-chart-compact" id="altitudePlot" aria-label="INS_Out 高度曲线"></div>
+      </div>
+      <div class="chart-actions" aria-label="高度图操作">
+        <button class="icon-button" type="button" data-chart-action="toggle-altitude-interaction" aria-label="切换 平移/缩放"></button>
+        <button class="icon-button" type="button" data-chart-action="reset-altitude-view" aria-label="复位视图"></button>
+        <button class="icon-button" type="button" data-chart-action="open-altitude-dialog" aria-label="展开"></button>
+        <button class="icon-button" type="button" data-chart-action="download-altitude-image" aria-label="下载图片"></button>
+        <button class="icon-button" type="button" data-chart-action="download-altitude-csv" aria-label="下载 CSV"></button>
+      </div>
+    </article>
+  `;
+}
+
+function renderModuleContent(module, trajectory, altitude) {
   if (module.id === "pose") {
-    return renderTrajectoryFigure(trajectory);
+    return `${renderTrajectoryFigure(trajectory)}${renderAltitudeFigure(altitude)}`;
   }
 
   return '<div class="chart-module-empty">图表待添加</div>';
@@ -1327,6 +1632,7 @@ function renderModuleContent(module, trajectory) {
 
 function renderCharts(result) {
   const trajectory = collectTrajectoryPoints(result);
+  const altitude = collectAltitudePoints(result);
 
   chartGrid.innerHTML = chartModules
     .map(
@@ -1339,7 +1645,7 @@ function renderCharts(result) {
             </div>
           </div>
           <div class="chart-stack">
-            ${renderModuleContent(module, trajectory)}
+            ${renderModuleContent(module, trajectory, altitude)}
           </div>
         </section>
       `,
@@ -1349,6 +1655,11 @@ function renderCharts(result) {
   if (!trajectory.error) {
     requestAnimationFrame(() => {
       renderTrajectoryPlot(trajectory.points);
+    });
+  }
+  if (!altitude.error) {
+    requestAnimationFrame(() => {
+      renderAltitudePlot(altitude.points);
     });
   }
 }

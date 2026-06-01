@@ -580,6 +580,12 @@ th {
   border-radius: inherit;
 }
 
+.plotly-chart-compact {
+  aspect-ratio: 3.5 / 1;
+  height: auto;
+  min-height: 240px;
+}
+
 .empty-state {
   grid-column: 1 / -1;
   padding: 38px 16px;
@@ -710,6 +716,10 @@ button.cancel-transfer:hover {
   height: 78%;
   display: block;
   color: var(--icon-blue);
+}
+
+.chart-dialog-actions .icon-button[hidden] {
+  display: none !important;
 }
 
 .fc-dialog-header {
