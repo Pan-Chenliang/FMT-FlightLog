@@ -324,6 +324,11 @@ table {
   width: 14%;
 }
 
+.bus-table th,
+.bus-table td {
+  padding: 7px 8px;
+}
+
 th,
 td {
   padding: 10px 9px;
