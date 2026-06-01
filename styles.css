@@ -340,7 +340,7 @@ td {
 th {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .chart-grid {
