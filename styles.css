@@ -137,7 +137,7 @@ h2 {
   gap: 8px;
   min-width: 0;
   min-height: 190px;
-  padding: 24px;
+  padding: 24px 14px;
   border: 2px dashed #9eb6dd;
   border-radius: 8px;
   background: #f3f7ff;
@@ -172,7 +172,7 @@ h2 {
   font-size: 18px;
   font-weight: 800;
   line-height: 1.25;
-  max-width: 100%;
+  max-width: calc(100% - 4px);
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -181,8 +181,12 @@ h2 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
-  max-width: min(280px, 100%);
+  max-width: calc(100% - 4px);
   overflow-wrap: anywhere;
+}
+
+.js-plotly-plot .legend .legendlines path {
+  stroke-width: 1.4px !important;
 }
 
 .status-panel {
