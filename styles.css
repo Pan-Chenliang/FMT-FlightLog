@@ -135,6 +135,7 @@ h2 {
   display: grid;
   place-content: center;
   gap: 8px;
+  min-width: 0;
   min-height: 190px;
   padding: 24px;
   border: 2px dashed #9eb6dd;
@@ -143,6 +144,7 @@ h2 {
   color: var(--primary-dark);
   text-align: center;
   cursor: pointer;
+  overflow: hidden;
   transition:
     border-color 0.18s ease,
     background 0.18s ease,
@@ -169,14 +171,18 @@ h2 {
 .drop-title {
   font-size: 18px;
   font-weight: 800;
-  white-space: nowrap;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .drop-hint {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
-  max-width: 220px;
+  max-width: min(280px, 100%);
+  overflow-wrap: anywhere;
 }
 
 .status-panel {

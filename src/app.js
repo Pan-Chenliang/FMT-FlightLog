@@ -179,7 +179,7 @@ const translations = {
   },
   en: {
     mainTitle: "FMT MLog Online Log Parser",
-    summary: "Upload an MLog file to parse message frames, draw charts, and export data locally in your browser.",
+    summary: "Upload an MLog file to parse message frames, draw charts, and export data locally.",
     importFromFc: "Import Logs from Flight Controller",
     importFromFcHint: "Connect to the flight-controller serial port in the browser, then download and parse logs directly.",
     selectLocalFile: "Select or Drop a Local File",
@@ -870,6 +870,9 @@ async function downloadRemoteFiles(files, { saveToDisk = false, parseAfterDownlo
 function applyLanguage() {
   document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
   document.querySelectorAll("[data-i18n]").forEach((node) => {
+    if (node === statusText && node.dataset.dynamic === "true") {
+      return;
+    }
     node.textContent = t(node.dataset.i18n);
   });
   document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => {
@@ -893,6 +896,7 @@ function toggleLanguage() {
 function setStatus(text, kind = "") {
   statusText.textContent = text;
   statusText.className = kind;
+  statusText.dataset.dynamic = "true";
 }
 
 function formatCacheTime(value) {
