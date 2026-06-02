@@ -537,6 +537,7 @@ let isDisconnectingFlightController = false;
 let closeAfterParse = false;
 let transferAbortController = null;
 let lastParsedResult = null;
+let currentStatus = null;
 
 function makeAbortError() {
   if (typeof DOMException === "function") {
@@ -757,7 +758,7 @@ async function disconnectFlightController({ updateMainStatus = true } = {}) {
     selectedFiles.clear();
     updateSelectionButtons();
     if (updateMainStatus) {
-      setStatus(t("disconnected"));
+      setStatusKey("disconnected");
     }
   } finally {
     isDisconnectingFlightController = false;
@@ -886,6 +887,10 @@ function applyLanguage() {
     renderParamTable(lastParsedResult);
     renderCharts(lastParsedResult);
   }
+  if (currentStatus) {
+    statusText.textContent = t(currentStatus.key, currentStatus.values);
+    statusText.className = currentStatus.kind;
+  }
 }
 
 function toggleLanguage() {
@@ -894,7 +899,15 @@ function toggleLanguage() {
 }
 
 function setStatus(text, kind = "") {
+  currentStatus = null;
   statusText.textContent = text;
+  statusText.className = kind;
+  statusText.dataset.dynamic = "true";
+}
+
+function setStatusKey(key, values = {}, kind = "") {
+  currentStatus = { key, values, kind };
+  statusText.textContent = t(key, values);
   statusText.className = kind;
   statusText.dataset.dynamic = "true";
 }
@@ -2203,7 +2216,7 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
   setCacheState(t("file"), false);
   busCount.textContent = "-";
   frameCount.textContent = "-";
-  setStatus(t("parsing"));
+  setStatusKey("parsing");
 
   try {
     const result = parseMlog(buffer);
@@ -2226,7 +2239,7 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
 
     busCount.textContent = result.buses.length;
     frameCount.textContent = result.totalFrames;
-    setStatus(cacheMeta ? t("parseDoneCached") : t("restoredCache"), "ok");
+    setStatusKey(cacheMeta ? "parseDoneCached" : "restoredCache", {}, "ok");
     setCacheState(cacheText, hasCache);
 
     renderMeta(result);
@@ -2235,7 +2248,7 @@ async function parseAndRender(buffer, displayName, cacheMeta = null) {
     renderCharts(result);
   } catch (error) {
     lastParsedResult = null;
-    setStatus(t("parseFailed"), "error");
+    setStatusKey("parseFailed", {}, "error");
     chartGrid.innerHTML = `<div class="empty-state">${escapeHtml(t("parseFailedDetail", { message: error.message }))}</div>`;
   }
 }
@@ -2262,7 +2275,7 @@ async function restoreCachedLog() {
     await parseAndRender(cached.buffer, cached.name);
     setCacheState(savedTime ? t("fileCachedFrom", { time: savedTime }) : t("cachedFile"), true);
   } catch (error) {
-    setStatus(t("cacheReadFailed", { message: error.message }), "error");
+    setStatusKey("cacheReadFailed", { message: error.message }, "error");
   }
 }
 
@@ -2270,9 +2283,9 @@ clearCacheButton.addEventListener("click", async () => {
   try {
     await clearLastLog();
     setCacheState(t("file"), false);
-    setStatus(t("cacheCleared"));
+    setStatusKey("cacheCleared");
   } catch (error) {
-    setStatus(t("cacheClearFailed", { message: error.message }), "error");
+    setStatusKey("cacheClearFailed", { message: error.message }, "error");
   }
 });
 
@@ -2306,7 +2319,7 @@ applyLanguage();
 
 flightControllerImport.addEventListener("click", async () => {
   if (!("serial" in navigator)) {
-    setStatus(t("browserNoSerial"), "error");
+    setStatusKey("browserNoSerial", {}, "error");
     return;
   }
 
@@ -2318,10 +2331,10 @@ flightControllerImport.addEventListener("click", async () => {
     flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("clickConnectToList"))}</div>`;
     refreshFlightLogList.disabled = true;
     flightControllerDialog.showModal();
-    setStatus(t("selectedFcPort"), "ok");
+    setStatusKey("selectedFcPort", {}, "ok");
   } catch (error) {
     if (error.name !== "NotFoundError") {
-      setStatus(t("selectSerialFailed", { message: error.message }), "error");
+      setStatusKey("selectSerialFailed", { message: error.message }, "error");
     }
   }
 });
@@ -2369,7 +2382,7 @@ connectFlightController.addEventListener("click", async () => {
     connectFlightController.textContent = t("disconnectFc");
     flightControllerDialogStatus.textContent = t("connectingPath", { path: remoteLogPath.value });
     flightLogList.innerHTML = `<div class="empty-state">${escapeHtml(t("clickRefreshToList"))}</div>`;
-    setStatus(t("connectedFc"), "ok");
+    setStatusKey("connectedFc", {}, "ok");
   } catch (error) {
     flightControllerDialogStatus.textContent = t("connectionFailed", { message: error.message });
   }
@@ -2629,7 +2642,7 @@ if (parseSelected) {
     const files = getSelectedRemoteFiles();
     if (files.length !== 1) return;
     try {
-      setStatus(t("readingFromFc", { name: files[0].name }));
+      setStatusKey("readingFromFc", { name: files[0].name });
       await downloadRemoteFiles(files, { parseAfterDownload: true });
       finishTransferProgress(t("readAndParsed", { name: files[0].name }));
       closeAfterParse = true;
@@ -2637,11 +2650,11 @@ if (parseSelected) {
     } catch (error) {
       if (isAbortError(error)) {
         showStoppedTransferProgress(t("transferCanceled"));
-        setStatus(t("readFcCanceled"));
+        setStatusKey("readFcCanceled");
         return;
       }
       showTransferProgress(t("transferFailed", { message: error.message }));
-      setStatus(t("readFcFailed", { message: error.message }), "error");
+      setStatusKey("readFcFailed", { message: error.message }, "error");
     }
   });
 }
@@ -2656,18 +2669,18 @@ if (downloadSelected) {
     if (selectedFiles.size === 0 || isFlightTransferActive) return;
     const files = getSelectedRemoteFiles();
     try {
-      setStatus(t("downloadingFcFiles", { count: files.length }));
+      setStatusKey("downloadingFcFiles", { count: files.length });
       await downloadRemoteFiles(files, { saveToDisk: true });
       finishTransferProgress(t("downloadedFcFiles", { count: files.length }));
-      setStatus(t("downloadedFcFiles", { count: files.length }), "ok");
+      setStatusKey("downloadedFcFiles", { count: files.length }, "ok");
     } catch (error) {
       if (isAbortError(error)) {
         showStoppedTransferProgress(t("transferCanceled"));
-        setStatus(t("downloadFcCanceled"));
+        setStatusKey("downloadFcCanceled");
         return;
       }
       showTransferProgress(t("transferFailed", { message: error.message }));
-      setStatus(t("downloadFcFailed", { message: error.message }), "error");
+      setStatusKey("downloadFcFailed", { message: error.message }, "error");
     }
   });
 }
