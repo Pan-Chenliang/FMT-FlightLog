@@ -283,7 +283,7 @@ h2 {
 
 .meta-list div {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
+  grid-template-columns: 105px minmax(0, 1fr);
   gap: 10px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
