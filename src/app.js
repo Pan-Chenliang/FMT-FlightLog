@@ -350,6 +350,89 @@ const trajectoryConfig = {
   zField: "h_R",
 };
 
+const VEHICLE_STATE_MAP = {
+  //  None / inactive
+  0:  { label: "None",              color: "rgba(180,180,180,0.14)", textColor: "#888888" },
+  //  Disarm
+  1:  { label: "Disarm",            color: "rgba(160,160,160,0.14)", textColor: "#777777" },
+  //  Ready / standby – blue
+  2:  { label: "Standby",           color: "rgba(100,149,237,0.18)", textColor: "#2563eb" },
+  //  Autonomous – cyan / teal
+  3:  { label: "Offboard",          color: "rgba(0,188,212,0.18)",   textColor: "#0891b2" },
+  4:  { label: "Mission",           color: "rgba(0,188,180,0.18)",   textColor: "#0d9488" },
+  //  Invalid – red / orange
+  5:  { label: "InvalidAutoMode",   color: "rgba(239,83,80,0.18)",   textColor: "#dc2626" },
+  //  Hold – amber / yellow
+  6:  { label: "Hold",              color: "rgba(255,193,7,0.20)",   textColor: "#d97706" },
+  //  Manual aggressive – magenta
+  7:  { label: "Acro",              color: "rgba(236,72,153,0.18)",  textColor: "#db2777" },
+  //  Normal assisted – green family
+  8:  { label: "Stabilize",         color: "rgba(76,175,80,0.18)",   textColor: "#16a34a" },
+  9:  { label: "Altitude",          color: "rgba(34,197,94,0.18)",   textColor: "#0d6f31" },
+  10: { label: "Position",          color: "rgba(132,204,22,0.18)",  textColor: "#65a30d" },
+  //  Invalid assisted – orange
+  11: { label: "InvalidAssistMode", color: "rgba(255,112,67,0.18)",  textColor: "#ea580c" },
+  //  Manual – warm coral
+  12: { label: "Manual",            color: "rgba(244,114,104,0.20)", textColor: "#e7ff2e" },
+  //  Invalid manual / arm – red-orange
+  13: { label: "InvalidManualMode", color: "rgba(255,87,51,0.18)",   textColor: "#d93600" },
+  14: { label: "InvalidArmMode",    color: "rgba(234,88,12,0.18)",   textColor: "#c2410c" },
+  //  Special actions
+  15: { label: "Land",              color: "rgba(168,85,247,0.18)",  textColor: "#9333ea" },
+  16: { label: "Return",            color: "rgba(245,158,11,0.20)",  textColor: "#b45309" },
+  17: { label: "Takeoff",           color: "rgba(217,70,239,0.18)",  textColor: "#a21caf" },
+};
+
+const DEFAULT_STATE_ENTRY = { label: "Unknown", color: "rgba(180,180,180,0.10)", textColor: "#888888" };
+
+function extractStateSegments(result) {
+  const bus = result.buses.find((c) => c.name === "FMS_Out");
+  if (!bus || !bus.fields.includes("state")) {
+    return [];
+  }
+  const tsField = bus.timestampField && bus.fields.includes(bus.timestampField) ? bus.timestampField : null;
+  const frames = bus.frames;
+  if (frames.length === 0) return [];
+
+  const segments = [];
+  let segStart = null;
+  let segState = null;
+  let segStartTime = null;
+
+  const finalizeSegment = (endTime) => {
+    if (segStart !== null) {
+      segments.push({
+        state: segState,
+        t0: segStartTime,
+        t1: endTime,
+      });
+    }
+  };
+
+  for (let i = 0; i < frames.length; i++) {
+    const st = Math.round(Number(frames[i]["state"]));
+    const ts = tsField ? Number(frames[i][tsField]) * 0.001 : i;
+    if (!Number.isFinite(ts)) continue;
+    if (st !== segState) {
+      if (segStart !== null) {
+        finalizeSegment(ts);
+      }
+      segStart = i;
+      segState = st;
+      segStartTime = ts;
+    }
+  }
+  // finalize last segment
+  if (segStart !== null) {
+    const lastTs = tsField ? Number(frames[frames.length - 1][tsField]) * 0.001 : frames.length - 1;
+    finalizeSegment(Number.isFinite(lastTs) ? lastTs : segStartTime);
+  }
+
+  return segments;
+}
+
+let lastStateSegments = [];
+
 const poseTimeSeriesCharts = [
   { id: "altitude", title: "高度", field: "h_R", unit: "m" },
   { id: "north-position", title: "北向位置(Y)", field: "y_R", unit: "m" },
@@ -1577,7 +1660,7 @@ function createTrajectoryPlotSpec(points, mode) {
   };
 }
 
-function createTimeSeriesPlotSpec(series) {
+function createTimeSeriesPlotSpec(series, stateSegments) {
   const { chart, points } = series;
   const time = points.map((point) => point.timeSeconds);
   const values = points.map((point) => point.value);
@@ -1604,6 +1687,61 @@ function createTimeSeriesPlotSpec(series) {
     itemsizing: "constant",
   };
 
+  // Build flight-state background shapes and hover traces
+  const shapes = [];
+  const stateHoverTraces = [];
+  const annotations = [];
+  const segs = stateSegments || [];
+
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    const entry = VEHICLE_STATE_MAP[seg.state] || DEFAULT_STATE_ENTRY;
+    // Background rectangle spanning full y-axis
+    shapes.push({
+      type: "rect",
+      xref: "x",
+      yref: "paper",
+      x0: seg.t0,
+      x1: seg.t1,
+      y0: 0,
+      y1: 1,
+      fillcolor: entry.color,
+      line: { width: 0 },
+      layer: "below",
+    });
+    // Annotation showing state name (rotated, aligned to segment left edge)
+    // Starts transparent; setupStateAnnotationHover switches to semantic color on mouse enter.
+    annotations.push({
+      x: seg.t0,
+      y: 0.97,
+      xref: "x",
+      yref: "paper",
+      text: entry.label,
+      showarrow: false,
+      font: { size: 10, color: "rgba(0,0,0,0)" },
+      textangle: -90,
+      xanchor: "left",
+      yanchor: "top",
+    });
+    // Invisible scatter trace for hover: single midpoint point
+    const midX = (seg.t0 + seg.t1) / 2;
+    stateHoverTraces.push({
+      type: "scatter",
+      mode: "markers",
+      x: [midX],
+      y: [NaN],
+      hoverinfo: "text",
+      hovertext: [entry.label],
+      hoverlabel: {
+        bgcolor: "rgba(248,250,252,0.92)",
+        bordercolor: "rgba(148,163,184,0.5)",
+        font: { color: "#172033", size: 13 },
+      },
+      showlegend: false,
+      marker: { size: 1, opacity: 0 },
+    });
+  }
+
   return {
     traces: [
       {
@@ -1619,6 +1757,7 @@ function createTimeSeriesPlotSpec(series) {
         hovertemplate:
           `frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>${escapeHtml(chart.field)}: %{y:.3f} ${escapeHtml(chart.unit)}<extra></extra>`,
       },
+      ...stateHoverTraces,
     ],
     layout: {
       autosize: true,
@@ -1629,6 +1768,8 @@ function createTimeSeriesPlotSpec(series) {
       font: commonFont,
       hoverlabel,
       legend,
+      shapes,
+      annotations,
       xaxis: {
         title: "time",
         range: getTightRange(time),
@@ -1691,8 +1832,42 @@ function renderTrajectoryPlotTo(plot, points, mode, interactionMode) {
   setup3DAxisTickAutoscale(plot, mode);
 }
 
-function renderTimeSeriesPlotTo(plot, series, interactionMode) {
-  const spec = createTimeSeriesPlotSpec(series);
+/**
+ * Toggle state-segment annotation text between transparent (hidden) and
+ * opaque (visible) based on mouse presence inside the plot area.
+ * Font colour is switched via Plotly.relayout, which is more reliable
+ * than toggling `annotations[i].visible`.
+ */
+function setupStateAnnotationHover(plot, segCount, textColors) {
+  if (!segCount) return;
+  const indices = Array.from({ length: segCount }, (_, i) => i);
+  let mouseIsDown = false;
+
+  const show = () => {
+    try {
+      window.Plotly.relayout(plot,
+        Object.fromEntries(indices.map((i) => [`annotations[${i}].font.color`, textColors[i]])));
+    } catch (_) { /* ignore */ }
+  };
+  const hide = () => {
+    try {
+      window.Plotly.relayout(plot,
+        Object.fromEntries(indices.map((i) => [`annotations[${i}].font.color`, "rgba(0,0,0,0)"])));
+    } catch (_) { /* ignore */ }
+  };
+
+  plot.addEventListener("mouseenter", show);
+  plot.addEventListener("mousedown", () => { mouseIsDown = true; });
+  plot.addEventListener("mouseup", () => { mouseIsDown = false; });
+  plot.addEventListener("mouseleave", () => {
+    if (!mouseIsDown) hide();
+  });
+  // Global fallback: if mouseup happens outside the plot, still clear the flag
+  document.addEventListener("mouseup", () => { mouseIsDown = false; });
+}
+
+function renderTimeSeriesPlotTo(plot, series, interactionMode, stateSegments) {
+  const spec = createTimeSeriesPlotSpec(series, stateSegments);
   const config = {
     displayModeBar: false,
     displaylogo: false,
@@ -1704,6 +1879,13 @@ function renderTimeSeriesPlotTo(plot, series, interactionMode) {
   window.Plotly.newPlot(plot, spec.traces, spec.layout, config);
   apply2DInteraction(plot, interactionMode);
   setupWheelZoom(plot, "2d");
+  if (stateSegments && stateSegments.length) {
+    const textColors = stateSegments.map((seg) => {
+      const entry = VEHICLE_STATE_MAP[seg.state] || DEFAULT_STATE_ENTRY;
+      return entry.textColor;
+    });
+    setupStateAnnotationHover(plot, stateSegments.length, textColors);
+  }
 }
 
 function updateTrajectoryControlIcons({ modeButton, interactionButton, resetButton, mode, interactionMode }) {
@@ -1780,7 +1962,7 @@ function openTrajectoryDialog(points, initialMode, initialInteractionMode) {
   requestAnimationFrame(drawDialog);
 }
 
-function openTimeSeriesDialog(series, initialInteractionMode) {
+function openTimeSeriesDialog(series, initialInteractionMode, stateSegments) {
   if (!chartDialog || !chartDialogPlot || !window.Plotly) {
     return;
   }
@@ -1795,7 +1977,7 @@ function openTimeSeriesDialog(series, initialInteractionMode) {
   }
 
   const drawDialog = () => {
-    renderTimeSeriesPlotTo(chartDialogPlot, series, dialogInteractionMode);
+    renderTimeSeriesPlotTo(chartDialogPlot, series, dialogInteractionMode, stateSegments);
     update2DControlIcons({
       interactionButton: chartDialogInteraction,
       resetButton: chartDialogReset,
@@ -1944,7 +2126,7 @@ function renderTimeSeriesPlot(series) {
   let interactionMode = "pan";
 
   const draw = () => {
-    renderTimeSeriesPlotTo(plot, series, interactionMode);
+    renderTimeSeriesPlotTo(plot, series, interactionMode, lastStateSegments);
     update2DControlIcons({ interactionButton, resetButton, interactionMode });
     if (expandButton) {
       inlineSvgIcon(expandButton, "full");
@@ -1971,7 +2153,7 @@ function renderTimeSeriesPlot(series) {
   });
 
   expandButton?.addEventListener("click", () => {
-    openTimeSeriesDialog(series, interactionMode);
+    openTimeSeriesDialog(series, interactionMode, lastStateSegments);
   });
 
   downloadButton?.addEventListener("click", () => {
@@ -2170,6 +2352,7 @@ function setupChartModuleCollapse() {
 }
 
 function renderCharts(result) {
+  lastStateSegments = extractStateSegments(result);
   const trajectory = collectTrajectoryPoints(result);
   const moduleTimeSeries = Object.fromEntries(
     Object.entries(moduleTimeSeriesCharts).map(([moduleId, charts]) => [
