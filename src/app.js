@@ -1791,20 +1791,18 @@ function createTimeSeriesPlotSpec(series, stateSegments) {
 }
 
 function applyTrajectoryInteraction(plot, mode, interactionMode) {
-  const dragmode = interactionMode === "pan" ? "pan" : "zoom";
-  if (mode === "2d") {
-    try {
-      window.Plotly.relayout(plot, { dragmode });
-    } catch (error) {
-      // Ignore Plotly relayout timing errors.
-    }
+  if (mode === "3d") {
+    // In 3D mode, do not override scene.dragmode so Plotly uses its
+    // default orbit behaviour: left-click = rotate, right-click = pan,
+    // scroll = zoom.  Setting dragmode to "pan" or "zoom" collapses
+    // both mouse buttons into the same action.
     return;
   }
-
+  const dragmode = interactionMode === "pan" ? "pan" : "zoom";
   try {
-    window.Plotly.relayout(plot, { "scene.dragmode": dragmode });
+    window.Plotly.relayout(plot, { dragmode });
   } catch (error) {
-    // 3D dragmode support varies by Plotly version; keep default interaction if unavailable.
+    // Ignore Plotly relayout timing errors.
   }
 }
 
@@ -1894,6 +1892,9 @@ function updateTrajectoryControlIcons({ modeButton, interactionButton, resetButt
     modeButton.title = mode === "3d" ? t("switchTo2D") : t("switchTo3D");
   }
   if (interactionButton) {
+    // In 3D mode, Plotly uses default orbit controls (left=rotate,
+    // right=pan, scroll=zoom) so the pan/zoom toggle is irrelevant.
+    interactionButton.hidden = mode === "3d";
     inlineSvgIcon(interactionButton, interactionMode === "pan" ? "zoom" : "pan");
     interactionButton.title = interactionMode === "pan" ? t("switchToZoom") : t("switchToPan");
   }
