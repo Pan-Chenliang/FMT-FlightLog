@@ -160,6 +160,7 @@ const translations = {
     downloadFcCanceled: "下载飞控日志已取消",
     downloadFcFailed: "下载飞控日志失败：{message}",
     parsing: "解析中",
+    parsingCache: "正在解析缓存",
     parseDoneCached: "解析完成，已缓存",
     restoredCache: "已从缓存恢复",
     parseFailed: "解析失败",
@@ -296,6 +297,7 @@ const translations = {
     downloadFcCanceled: "Flight-controller log download canceled",
     downloadFcFailed: "Failed to download flight-controller logs: {message}",
     parsing: "Parsing",
+    parsingCache: "Parsing cached log",
     parseDoneCached: "Parsed and cached",
     restoredCache: "Restored from cache",
     parseFailed: "Parse failed",
@@ -993,6 +995,19 @@ function setStatusKey(key, values = {}, kind = "") {
   statusText.textContent = t(key, values);
   statusText.className = kind;
   statusText.dataset.dynamic = "true";
+}
+
+function waitForPaint() {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame !== "function") {
+      setTimeout(resolve, 0);
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      setTimeout(resolve, 0);
+    });
+  });
 }
 
 function formatCacheTime(value) {
@@ -2395,12 +2410,13 @@ function renderCharts(result) {
   });
 }
 
-async function parseAndRender(buffer, displayName, cacheMeta = null) {
+async function parseAndRender(buffer, displayName, cacheMeta = null, options = {}) {
   setFileDisplay(displayName);
   setCacheState(t("file"), false);
   busCount.textContent = "-";
   frameCount.textContent = "-";
-  setStatusKey("parsing");
+  setStatusKey(options.statusKey ?? "parsing");
+  await waitForPaint();
 
   try {
     const result = parseMlog(buffer);
@@ -2456,7 +2472,7 @@ async function restoreCachedLog() {
     }
 
     const savedTime = cached.savedAt ? formatCacheTime(cached.savedAt) : "";
-    await parseAndRender(cached.buffer, cached.name);
+    await parseAndRender(cached.buffer, cached.name, null, { statusKey: "parsingCache" });
     setCacheState(savedTime ? t("fileCachedFrom", { time: savedTime }) : t("cachedFile"), true);
   } catch (error) {
     setStatusKey("cacheReadFailed", { message: error.message }, "error");
