@@ -105,6 +105,8 @@ const translations = {
     curve: "曲线",
     points: "点",
     noCharts: "图表待添加",
+    drawingCharts: "正在绘制图表",
+    drawingProgress: "正在绘制 {current}/{total}",
     plotlyTrajectoryFailed: "Plotly.js 加载失败，无法显示航迹图。",
     plotlyChartFailed: "Plotly.js 加载失败，无法显示{title}图。",
     msgNoBus: "没有找到 {busName} 消息，无法绘制{title}。",
@@ -242,6 +244,8 @@ const translations = {
     curve: "Curve",
     points: "points",
     noCharts: "Charts to be added",
+    drawingCharts: "Drawing charts",
+    drawingProgress: "Drawing {current}/{total}",
     plotlyTrajectoryFailed: "Plotly.js failed to load. The trajectory chart cannot be displayed.",
     plotlyChartFailed: "Plotly.js failed to load. The {title} chart cannot be displayed.",
     msgNoBus: "{busName} message was not found. Cannot draw {title}.",
@@ -433,7 +437,7 @@ function extractStateSegments(result) {
   return segments;
 }
 
-let lastStateSegments = [];
+let lastStateSegments = null;
 
 const poseTimeSeriesCharts = [
   { id: "altitude", title: "高度", field: "h_R", unit: "m" },
@@ -621,6 +625,9 @@ let pendingTransferProgress = null;
 let isDisconnectingFlightController = false;
 let closeAfterParse = false;
 let transferAbortController = null;
+let activeParseAbortController = null;
+let activeParseRunId = 0;
+let cacheParseAbortController = null;
 let lastParsedResult = null;
 let currentStatus = null;
 
@@ -657,6 +664,12 @@ async function inlineSvgIcon(button, name) {
 
 function isAbortError(error) {
   return error?.name === "AbortError";
+}
+
+function cancelActiveParse(reason = makeAbortError()) {
+  if (activeParseAbortController && !activeParseAbortController.signal.aborted) {
+    activeParseAbortController.abort(reason);
+  }
 }
 
 function updateSelectionButtons() {
@@ -1007,6 +1020,60 @@ function waitForPaint() {
     requestAnimationFrame(() => {
       setTimeout(resolve, 0);
     });
+  });
+}
+
+function parseMlogInWorker(buffer, { signal = null, transferBuffer = false } = {}) {
+  if (typeof Worker !== "function") {
+    return Promise.resolve(parseMlog(buffer));
+  }
+
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? makeAbortError());
+      return;
+    }
+
+    const worker = new Worker(new URL("./parseWorker.js", import.meta.url), { type: "module" });
+    let settled = false;
+
+    const cleanup = () => {
+      signal?.removeEventListener("abort", abort);
+      worker.terminate();
+    };
+    const settle = (callback) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const abort = () => {
+      settle(() => reject(signal.reason ?? makeAbortError()));
+    };
+
+    worker.onmessage = (event) => {
+      const { ok, result, error } = event.data ?? {};
+      settle(() => {
+        if (ok) {
+          resolve(result);
+          return;
+        }
+        reject(new Error(error?.message ?? t("parseFailed")));
+      });
+    };
+    worker.onerror = (event) => {
+      settle(() => reject(new Error(event.message || t("parseFailed"))));
+    };
+
+    signal?.addEventListener("abort", abort, { once: true });
+
+    try {
+      worker.postMessage({ buffer }, transferBuffer ? [buffer] : []);
+    } catch (error) {
+      settle(() => reject(error));
+    }
   });
 }
 
@@ -2325,10 +2392,10 @@ function renderTimeSeriesFigure(series) {
   `;
 }
 
-function renderModuleContent(module, trajectory, moduleTimeSeries) {
-  const timeSeries = moduleTimeSeries[module.id] || [];
+function renderModuleContent(module, data) {
+  const timeSeries = data.timeSeries || [];
   if (module.id === "pose") {
-    return `${renderTrajectoryFigure(trajectory)}${timeSeries.map(renderTimeSeriesFigure).join("")}`;
+    return `${renderTrajectoryFigure(data.trajectory)}${timeSeries.map(renderTimeSeriesFigure).join("")}`;
   }
 
   if (timeSeries.length === 0) {
@@ -2336,6 +2403,130 @@ function renderModuleContent(module, trajectory, moduleTimeSeries) {
   }
 
   return timeSeries.map(renderTimeSeriesFigure).join("");
+}
+
+function collectModuleChartData(result, module) {
+  return {
+    trajectory: module.id === "pose" ? collectTrajectoryPoints(result) : null,
+    timeSeries: (moduleTimeSeriesCharts[module.id] || []).map((chart) => collectTimeSeriesPoints(result, chart)),
+  };
+}
+
+function getStateSegments(result) {
+  if (!lastStateSegments) {
+    lastStateSegments = extractStateSegments(result);
+  }
+  return lastStateSegments;
+}
+
+function countRenderableModulePlots(module, data) {
+  let total = data.timeSeries.filter((series) => !series.error).length;
+  if (module.id === "pose" && data.trajectory && !data.trajectory.error) {
+    total += 1;
+  }
+  return total;
+}
+
+async function renderModulePlots(module, data, result, onProgress = () => {}) {
+  let current = 0;
+  const total = Math.max(1, countRenderableModulePlots(module, data));
+
+  // Ensure the browser has time to paint the progress bar before we start
+  // the (potentially long) synchronous Plotly.newPlot call.
+  const paintAndWait = async () => {
+    // Double-rAF: first rAF runs before the next paint, second rAF runs
+    // after the paint, giving the browser a full frame to commit pixels.
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+  };
+
+  const showProgressThenWait = async () => {
+    current += 1;
+    onProgress(current, total);
+    await paintAndWait();
+  };
+
+  if (module.id === "pose" && data.trajectory && !data.trajectory.error) {
+    await showProgressThenWait();
+    renderTrajectoryPlot(data.trajectory.points);
+  }
+
+  lastStateSegments = getStateSegments(result);
+  for (const series of data.timeSeries.filter((item) => !item.error)) {
+    await showProgressThenWait();
+    renderTimeSeriesPlot(series);
+  }
+}
+
+function renderChartLoading(current = 0, total = 1) {
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+  return `
+    <div class="chart-module-loading" data-chart-loading>
+      <span class="chart-module-spinner" aria-hidden="true"></span>
+      <div>
+        <strong>${escapeHtml(t("drawingCharts"))}</strong>
+        <div class="chart-module-progress" aria-hidden="true">
+          <span style="width: ${percent}%"></span>
+        </div>
+        <small data-chart-loading-text>${escapeHtml(t("drawingProgress", { current, total }))}</small>
+      </div>
+    </div>
+  `;
+}
+
+function updateChartLoading(stack, current, total) {
+  const progress = stack.querySelector(".chart-module-progress span");
+  const text = stack.querySelector("[data-chart-loading-text]");
+  if (progress) {
+    progress.style.width = `${total > 0 ? Math.round((current / total) * 100) : 0}%`;
+  }
+  if (text) {
+    text.textContent = t("drawingProgress", { current, total });
+  }
+}
+
+function getChartModuleByElement(moduleElement) {
+  return chartModules.find((item) => item.id === moduleElement.dataset.moduleId);
+}
+
+async function loadChartModule(result, moduleElement) {
+  const stack = moduleElement.querySelector(".chart-stack");
+  const module = getChartModuleByElement(moduleElement);
+  if (!stack || !module || moduleElement.dataset.loaded === "true" || moduleElement.dataset.loading === "true") {
+    return;
+  }
+
+  moduleElement.dataset.loading = "true";
+  try {
+    const data = collectModuleChartData(result, module);
+    if (lastParsedResult !== result) {
+      return;
+    }
+
+    const total = Math.max(1, countRenderableModulePlots(module, data));
+    stack.innerHTML = `${renderChartLoading(0, total)}<div class="chart-render-content is-preparing">${renderModuleContent(module, data)}</div>`;
+    moduleElement.dataset.loaded = "true";
+    await waitForPaint();
+
+    if (lastParsedResult !== result) {
+      return;
+    }
+
+    await renderModulePlots(module, data, result, (current, count) => updateChartLoading(stack, current, count));
+    if (lastParsedResult !== result) {
+      return;
+    }
+
+    stack.querySelector("[data-chart-loading]")?.remove();
+    const content = stack.querySelector(".chart-render-content");
+    content?.classList.remove("is-preparing");
+    if (content) {
+      resizePlotsIn(content);
+    }
+  } finally {
+    delete moduleElement.dataset.loading;
+  }
 }
 
 function resizePlotsIn(container) {
@@ -2348,7 +2539,7 @@ function resizePlotsIn(container) {
   });
 }
 
-function setupChartModuleCollapse() {
+function setupChartModuleCollapse(result) {
   chartGrid.querySelectorAll(".chart-module").forEach((moduleElement) => {
     const headerButton = moduleElement.querySelector(".chart-module-toggle");
     const stack = moduleElement.querySelector(".chart-stack");
@@ -2361,6 +2552,11 @@ function setupChartModuleCollapse() {
       stack.hidden = collapsed;
       headerButton.setAttribute("aria-expanded", String(!collapsed));
       if (!collapsed) {
+        if (moduleElement.dataset.loaded !== "true") {
+          void loadChartModule(result, moduleElement);
+          return;
+        }
+
         requestAnimationFrame(() => resizePlotsIn(stack));
       }
     });
@@ -2368,19 +2564,12 @@ function setupChartModuleCollapse() {
 }
 
 function renderCharts(result) {
-  lastStateSegments = extractStateSegments(result);
-  const trajectory = collectTrajectoryPoints(result);
-  const moduleTimeSeries = Object.fromEntries(
-    Object.entries(moduleTimeSeriesCharts).map(([moduleId, charts]) => [
-      moduleId,
-      charts.map((chart) => collectTimeSeriesPoints(result, chart)),
-    ]),
-  );
+  lastStateSegments = null;
 
   chartGrid.innerHTML = chartModules
     .map(
       (module) => `
-        <section class="chart-module is-collapsed" aria-label="${escapeHtml(label(module.title))}">
+        <section class="chart-module is-collapsed" data-module-id="${escapeHtml(module.id)}" aria-label="${escapeHtml(label(module.title))}">
           <button class="chart-module-header chart-module-toggle" type="button" aria-expanded="false">
             <span class="chart-module-chevron" aria-hidden="true"></span>
             <div>
@@ -2388,38 +2577,42 @@ function renderCharts(result) {
               <p>${escapeHtml(label(module.description))}</p>
             </div>
           </button>
-          <div class="chart-stack" hidden>
-            ${renderModuleContent(module, trajectory, moduleTimeSeries)}
-          </div>
+          <div class="chart-stack" hidden></div>
         </section>
       `,
     )
     .join("");
-
-  if (!trajectory.error) {
-    requestAnimationFrame(() => {
-      renderTrajectoryPlot(trajectory.points);
-    });
-  }
-  requestAnimationFrame(() => {
-    Object.values(moduleTimeSeries)
-      .flat()
-      .filter((series) => !series.error)
-      .forEach(renderTimeSeriesPlot);
-    setupChartModuleCollapse();
-  });
+  setupChartModuleCollapse(result);
 }
 
 async function parseAndRender(buffer, displayName, cacheMeta = null, options = {}) {
+  cancelActiveParse();
+  const parseController = options.controller ?? new AbortController();
+  const parseRunId = activeParseRunId + 1;
+  activeParseRunId = parseRunId;
+  activeParseAbortController = parseController;
+
+  const keepCacheVisible = options.keepCacheVisible ?? false;
+  const cacheLabelText = options.cacheLabelText ?? t("file");
   setFileDisplay(displayName);
-  setCacheState(t("file"), false);
+  setCacheState(cacheLabelText, keepCacheVisible);
   busCount.textContent = "-";
   frameCount.textContent = "-";
   setStatusKey(options.statusKey ?? "parsing");
   await waitForPaint();
+  if (parseRunId !== activeParseRunId || parseController.signal.aborted) {
+    return false;
+  }
 
   try {
-    const result = parseMlog(buffer);
+    const result = await parseMlogInWorker(buffer, {
+      signal: parseController.signal,
+      transferBuffer: options.transferBuffer ?? false,
+    });
+    if (parseRunId !== activeParseRunId || parseController.signal.aborted) {
+      return false;
+    }
+
     lastParsedResult = result;
     let hasCache = false;
     let cacheText = "";
@@ -2440,20 +2633,31 @@ async function parseAndRender(buffer, displayName, cacheMeta = null, options = {
     busCount.textContent = result.buses.length;
     frameCount.textContent = result.totalFrames;
     setStatusKey(cacheMeta ? "parseDoneCached" : "restoredCache", {}, "ok");
-    setCacheState(cacheText, hasCache);
+    setCacheState(cacheText || cacheLabelText, hasCache || keepCacheVisible);
 
     renderMeta(result);
     renderBusTable(result);
     renderParamTable(result);
     renderCharts(result);
   } catch (error) {
+    if (isAbortError(error)) {
+      return false;
+    }
     lastParsedResult = null;
     setStatusKey("parseFailed", {}, "error");
     chartGrid.innerHTML = `<div class="empty-state">${escapeHtml(t("parseFailedDetail", { message: error.message }))}</div>`;
+    return false;
+  } finally {
+    if (parseRunId === activeParseRunId) {
+      activeParseAbortController = null;
+    }
   }
+
+  return true;
 }
 
 async function handleFile(file) {
+  cancelActiveParse();
   const buffer = await file.arrayBuffer();
   await parseAndRender(buffer, file.name, {
     name: file.name,
@@ -2472,15 +2676,29 @@ async function restoreCachedLog() {
     }
 
     const savedTime = cached.savedAt ? formatCacheTime(cached.savedAt) : "";
-    await parseAndRender(cached.buffer, cached.name, null, { statusKey: "parsingCache" });
-    setCacheState(savedTime ? t("fileCachedFrom", { time: savedTime }) : t("cachedFile"), true);
+    const cacheLabelText = savedTime ? t("fileCachedFrom", { time: savedTime }) : t("cachedFile");
+    const controller = new AbortController();
+    cacheParseAbortController = controller;
+    await parseAndRender(cached.buffer, cached.name, null, {
+      cacheLabelText,
+      keepCacheVisible: true,
+      controller,
+      statusKey: "parsingCache",
+      transferBuffer: true,
+    });
   } catch (error) {
+    if (isAbortError(error)) {
+      return;
+    }
     setStatusKey("cacheReadFailed", { message: error.message }, "error");
+  } finally {
+    cacheParseAbortController = null;
   }
 }
 
 clearCacheButton.addEventListener("click", async () => {
   try {
+    cacheParseAbortController?.abort(makeAbortError());
     await clearLastLog();
     setCacheState(t("file"), false);
     setStatusKey("cacheCleared");
@@ -2841,6 +3059,7 @@ if (parseSelected) {
     if (selectedFiles.size !== 1 || isFlightTransferActive) return;
     const files = getSelectedRemoteFiles();
     if (files.length !== 1) return;
+    cancelActiveParse();
     try {
       setStatusKey("readingFromFc", { name: files[0].name });
       await downloadRemoteFiles(files, { parseAfterDownload: true });

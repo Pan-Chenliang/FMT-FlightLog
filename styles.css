@@ -537,6 +537,74 @@ th {
   text-align: center;
 }
 
+.chart-module-loading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 72px;
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chart-module-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #d8e1ef;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: chart-spin 0.9s linear infinite;
+}
+
+.chart-module-loading strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.chart-module-progress {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7edf6;
+}
+
+.chart-module-progress span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 160ms ease;
+}
+
+.chart-render-content.is-preparing {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  width: min(1180px, calc(100vw - 48px));
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.chart-render-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--chart-pad);
+}
+
+@keyframes chart-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .chart-figure {
   display: grid;
   /* main column stretches, actions column sized to content to avoid unused whitespace */
