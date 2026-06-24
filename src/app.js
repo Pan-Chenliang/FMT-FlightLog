@@ -1445,7 +1445,9 @@ function createTrajectoryPlotSpec(points, mode) {
   const x = points.map((point) => point.x);
   const y = points.map((point) => point.y);
   const z = points.map((point) => point.z);
-  const pointMeta = points.map((point) => [point.index, point.timeSeconds]);
+  const plotX = y;
+  const plotY = x;
+  const pointMeta = points.map((point) => [point.index, point.timeSeconds, point.x, point.y, point.z]);
   const first = points[0];
   const last = points[points.length - 1];
   const commonFont = {
@@ -1531,7 +1533,7 @@ function createTrajectoryPlotSpec(points, mode) {
         hoverlabel,
         legend,
         xaxis: {
-          title: "y_R (m)",
+          title: "y_R",
           range: xAxisRange,
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
@@ -1539,7 +1541,7 @@ function createTrajectoryPlotSpec(points, mode) {
           automargin: true,
         },
         yaxis: {
-          title: "x_R (m)",
+          title: "x_R",
           range: yAxisRange,
           gridcolor: "#dbe2ec",
           zerolinecolor: "#94a3b8",
@@ -1584,39 +1586,39 @@ function createTrajectoryPlotSpec(points, mode) {
         type: "scatter3d",
         mode: "lines",
         name: t("threeDTrajectory"),
-        x,
-        y,
+        x: plotX,
+        y: plotY,
         z,
         customdata: pointMeta,
         line: { color: "#1d5fd1", width: 6 },
         hoverlabel,
         hovertemplate:
-          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>x_R: %{x:.3f} m<br>y_R: %{y:.3f} m<br>h_R: %{z:.3f} m<extra></extra>",
+          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>x_R: %{customdata[2]:.3f} m<br>y_R: %{customdata[3]:.3f} m<br>h_R: %{customdata[4]:.3f} m<extra></extra>",
       },
       {
         type: "scatter3d",
         mode: "markers",
         name: t("startEnd"),
         legendgroup: "startend",
-        x: [first.x, last.x],
-        y: [first.y, last.y],
+        x: [first.y, last.y],
+        y: [first.x, last.x],
         z: [first.z, last.z],
         customdata: [
-          [first.index, first.timeSeconds],
-          [last.index, last.timeSeconds],
+          [first.index, first.timeSeconds, first.x, first.y, first.z],
+          [last.index, last.timeSeconds, last.x, last.y, last.z],
         ],
         marker: { color: ["#16a34a", "#dc2626"], size: 7 },
         hoverlabel,
         hovertemplate:
-          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>x_R: %{x:.3f} m<br>y_R: %{y:.3f} m<br>h_R: %{z:.3f} m<extra></extra>",
+          "frame: %{customdata[0]}<br>time: %{customdata[1]:.3f} s<br>x_R: %{customdata[2]:.3f} m<br>y_R: %{customdata[3]:.3f} m<br>h_R: %{customdata[4]:.3f} m<extra></extra>",
       },
       {
         type: "scatter3d",
         mode: "text",
         name: t("startEndLabels"),
         legendgroup: "startend",
-        x: [first.x, last.x],
-        y: [first.y, last.y],
+        x: [first.y, last.y],
+        y: [first.x, last.x],
         z: [first.z, last.z],
         text: [t("start"), t("end")],
         textposition: "top center",
@@ -1626,8 +1628,8 @@ function createTrajectoryPlotSpec(points, mode) {
       {
         type: "mesh3d",
         name: t("ground"),
-        x: [groundXRange[0], groundXRange[1], groundXRange[1], groundXRange[0]],
-        y: [groundYRange[0], groundYRange[0], groundYRange[1], groundYRange[1]],
+        x: [groundYRange[0], groundYRange[1], groundYRange[1], groundYRange[0]],
+        y: [groundXRange[0], groundXRange[0], groundXRange[1], groundXRange[1]],
         z: [0, 0, 0, 0],
         i: [0, 0],
         j: [1, 2],
@@ -1659,32 +1661,11 @@ function createTrajectoryPlotSpec(points, mode) {
           const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
           const max = Math.max(xSize, ySize, zSize);
           // normalize so largest axis gets ratio 1
-          return { x: xSize / max, y: ySize / max, z: zSize / max };
+          return { x: ySize / max, y: xSize / max, z: zSize / max };
         })(),
         // set initial tick spacing based on max span so X/Y/Z use consistent dtick
         xaxis: {
-          title: "x_R (m)",
-          range: groundXRange,
-          backgroundcolor: "#f8fafc",
-          gridcolor: "#dbe2ec",
-          zerolinecolor: "#94a3b8",
-          ticksuffix: " m",
-          dtick: (() => {
-            const finiteX = x.filter(Number.isFinite);
-            const finiteY = y.filter(Number.isFinite);
-            const finiteZ = z.filter(Number.isFinite);
-            const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
-            const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
-            const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
-            const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
-            const base = niceTickStep(maxSpan, 12);
-            // ensure at least four ticks on this axis; if axis is much shorter, pick a smaller step
-            if (xSize / base < 4) return niceTickStep(xSize, 4);
-            return base;
-          })(),
-        },
-        yaxis: {
-          title: "y_R (m)",
+          title: { text: "y_R" },
           range: groundYRange,
           backgroundcolor: "#f8fafc",
           gridcolor: "#dbe2ec",
@@ -1699,12 +1680,33 @@ function createTrajectoryPlotSpec(points, mode) {
             const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
             const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
             const base = niceTickStep(maxSpan, 12);
+            // ensure at least four ticks on this axis; if axis is much shorter, pick a smaller step
             if (ySize / base < 4) return niceTickStep(ySize, 4);
             return base;
           })(),
         },
+        yaxis: {
+          title: { text: "x_R" },
+          range: groundXRange,
+          backgroundcolor: "#f8fafc",
+          gridcolor: "#dbe2ec",
+          zerolinecolor: "#94a3b8",
+          ticksuffix: " m",
+          dtick: (() => {
+            const finiteX = x.filter(Number.isFinite);
+            const finiteY = y.filter(Number.isFinite);
+            const finiteZ = z.filter(Number.isFinite);
+            const xSize = finiteX.length ? Math.max(1e-6, Math.max(...finiteX) - Math.min(...finiteX)) : 1;
+            const ySize = finiteY.length ? Math.max(1e-6, Math.max(...finiteY) - Math.min(...finiteY)) : 1;
+            const zSize = finiteZ.length ? Math.max(1e-6, Math.max(...finiteZ) - Math.min(...finiteZ)) : 1;
+            const maxSpan = Math.max(xSize, ySize, zSize, 1e-6);
+            const base = niceTickStep(maxSpan, 12);
+            if (xSize / base < 4) return niceTickStep(xSize, 4);
+            return base;
+          })(),
+        },
         zaxis: {
-          title: "h_R (m)",
+          title: { text: "h_R" },
           range: zRange,
           backgroundcolor: "#f8fafc",
           gridcolor: "#dbe2ec",
