@@ -70,6 +70,16 @@ const translations = {
     paramGroups: "参数组",
     dataCharts: "数据图表",
     chartsPlaceholder: "上传并解析日志后，将在这里配置和显示数据图表。",
+    customChartDescription: "从日志中选择任意数据绘制曲线。",
+    customChartMessage: "消息",
+    customChartField: "数据字段",
+    customChartName: "图表名称（可选）",
+    customChartNamePlaceholder: "默认使用消息名.字段名",
+    addCustomChart: "添加曲线",
+    deleteCustomChart: "删除自定义绘图",
+    noCustomFields: "当前日志中没有可绘制的数值字段。",
+    customChartAddFailed: "无法绘制所选字段。",
+    customChartTitle: "自定义绘图",
     close: "关闭",
     baudRate: "波特率",
     logPath: "日志路径",
@@ -209,6 +219,16 @@ const translations = {
     paramGroups: "Parameter Groups",
     dataCharts: "Data Charts",
     chartsPlaceholder: "Upload and parse a log to configure and display data charts here.",
+    customChartTitle: "Custom Plot",
+    customChartDescription: "Choose any message and numeric field in the log to plot a curve.",
+    customChartMessage: "Message",
+    customChartField: "Data field",
+    customChartName: "Chart name (optional)",
+    customChartNamePlaceholder: "Defaults to message.field",
+    addCustomChart: "Add Curve",
+    deleteCustomChart: "Delete custom plot",
+    noCustomFields: "This log has no plottable numeric fields.",
+    customChartAddFailed: "The selected field could not be plotted.",
     close: "Close",
     baudRate: "Baud Rate",
     logPath: "Log Path",
@@ -346,6 +366,11 @@ const chartModules = [
     id: "power",
     title: "电源状态",
     description: "供电与电源消耗数据",
+  },
+  {
+    id: "custom",
+    title: "自定义绘图",
+    description: "从日志中选择任意数据绘制曲线",
   },
 ];
 
@@ -538,6 +563,8 @@ const englishLabels = {
   "传感器原始数据与工作状态": "Raw sensor data and operating status",
   "电源状态": "Power Status",
   "供电与电源消耗数据": "Power supply and consumption data",
+  "自定义绘图": "Custom Plot",
+  "从日志中选择任意数据绘制曲线": "Choose any data in the log to plot a curve.",
   "高度": "Altitude",
   "北向位置(Y)": "North Position (Y)",
   "东向位置(X)": "East Position (X)",
@@ -629,6 +656,8 @@ let activeParseAbortController = null;
 let activeParseRunId = 0;
 let cacheParseAbortController = null;
 let lastParsedResult = null;
+let customPlotDefinitions = [];
+let customPlotCounter = 0;
 let currentStatus = null;
 
 function makeAbortError() {
@@ -2367,7 +2396,7 @@ function renderTrajectoryFigure(trajectory) {
   `;
 }
 
-function renderTimeSeriesFigure(series) {
+function renderTimeSeriesFigure(series, { removable = false } = {}) {
   if (series.error) {
     return `<div class="chart-module-empty">${escapeHtml(series.error)}</div>`;
   }
@@ -2389,6 +2418,7 @@ function renderTimeSeriesFigure(series) {
         <button class="icon-button" type="button" data-chart-action="open-${escapeHtml(chart.id)}-dialog" aria-label="${escapeHtml(t("expandImage"))}"></button>
         <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-image" aria-label="${escapeHtml(t("downloadImage"))}"></button>
         <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-csv" aria-label="${escapeHtml(t("downloadCsv"))}"></button>
+        ${removable ? `<button class="icon-button delete-custom-chart-button" type="button" data-chart-action="delete-${escapeHtml(chart.id)}" aria-label="${escapeHtml(t("deleteCustomChart"))}"></button>` : ""}
       </div>
     </article>
   `;
@@ -2414,6 +2444,95 @@ function collectModuleChartData(result, module) {
   };
 }
 
+function collectCustomChartCandidates(result) {
+  return result.buses.flatMap((bus) => bus.fields
+    .filter((field) => {
+      let validSamples = 0;
+      for (const frame of bus.frames) {
+        if (typeof frame[field] === "number" && Number.isFinite(frame[field]) && ++validSamples >= 2) {
+          return true;
+        }
+      }
+      return false;
+    })
+    .map((field) => ({ busName: bus.name, field })));
+}
+
+function appendCustomChartFigure(container, result, chart) {
+  const series = collectTimeSeriesPoints(result, chart);
+  if (series.error) {
+    const error = document.createElement("div");
+    error.className = "chart-module-empty";
+    error.textContent = series.error || t("customChartAddFailed");
+    container.append(error);
+    return;
+  }
+  container.insertAdjacentHTML("beforeend", renderTimeSeriesFigure(series, { removable: true }));
+  const figure = container.lastElementChild;
+  const deleteButton = figure.querySelector(`[data-chart-action="delete-${CSS.escape(chart.id)}"]`);
+  if (deleteButton) {
+    inlineSvgIcon(deleteButton, "close");
+    deleteButton.title = t("deleteCustomChart");
+    deleteButton.addEventListener("click", () => {
+      customPlotDefinitions = customPlotDefinitions.filter((definition) => definition.id !== chart.id);
+      window.Plotly?.purge(figure.querySelector(`#${CSS.escape(chart.id)}Plot`));
+      figure.remove();
+    });
+  }
+  lastStateSegments = getStateSegments(result);
+  renderTimeSeriesPlot(series);
+}
+
+function renderCustomChartModule(result, stack) {
+  const candidates = collectCustomChartCandidates(result);
+  const busNames = [...new Set(candidates.map((candidate) => candidate.busName))];
+  stack.innerHTML = `
+    <div class="custom-chart-builder">
+      ${candidates.length ? `
+        <form class="custom-chart-form">
+          <label><span>${escapeHtml(t("customChartMessage"))}</span><select data-custom-bus></select></label>
+          <label><span>${escapeHtml(t("customChartField"))}</span><select data-custom-field></select></label>
+          <label class="custom-chart-name"><span>${escapeHtml(t("customChartName"))}</span><input data-custom-title type="text" maxlength="80" placeholder="${escapeHtml(t("customChartNamePlaceholder"))}"></label>
+          <button type="submit">${escapeHtml(t("addCustomChart"))}</button>
+        </form>` : `<div class="chart-module-empty">${escapeHtml(t("noCustomFields"))}</div>`}
+      <div class="custom-chart-results"></div>
+    </div>`;
+
+  const form = stack.querySelector(".custom-chart-form");
+  if (!form) return;
+  const busSelect = form.querySelector("[data-custom-bus]");
+  const fieldSelect = form.querySelector("[data-custom-field]");
+  const titleInput = form.querySelector("[data-custom-title]");
+  const results = stack.querySelector(".custom-chart-results");
+  busSelect.innerHTML = busNames.map((busName) => `<option value="${escapeHtml(busName)}">${escapeHtml(busName)}</option>`).join("");
+
+  const updateFields = () => {
+    const fields = candidates.filter((candidate) => candidate.busName === busSelect.value).map((candidate) => candidate.field);
+    fieldSelect.innerHTML = fields.map((field) => `<option value="${escapeHtml(field)}">${escapeHtml(field)}</option>`).join("");
+  };
+  busSelect.addEventListener("change", updateFields);
+  updateFields();
+
+  for (const chart of customPlotDefinitions) {
+    appendCustomChartFigure(results, result, chart);
+  }
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const busName = busSelect.value;
+    const field = fieldSelect.value;
+    if (!candidates.some((candidate) => candidate.busName === busName && candidate.field === field)) return;
+    const chart = {
+      id: `custom-series-${++customPlotCounter}`,
+      busName,
+      field,
+      title: titleInput.value.trim() || `${busName}.${field}`,
+      unit: "",
+    };
+    customPlotDefinitions.push(chart);
+    appendCustomChartFigure(results, result, chart);
+    titleInput.value = "";
+  });
+}
 function getStateSegments(result) {
   if (!lastStateSegments) {
     lastStateSegments = extractStateSegments(result);
@@ -2496,6 +2615,12 @@ async function loadChartModule(result, moduleElement) {
   const stack = moduleElement.querySelector(".chart-stack");
   const module = getChartModuleByElement(moduleElement);
   if (!stack || !module || moduleElement.dataset.loaded === "true" || moduleElement.dataset.loading === "true") {
+    return;
+  }
+
+  if (module.id === "custom") {
+    renderCustomChartModule(result, stack);
+    moduleElement.dataset.loaded = "true";
     return;
   }
 
@@ -2616,6 +2741,8 @@ async function parseAndRender(buffer, displayName, cacheMeta = null, options = {
     }
 
     lastParsedResult = result;
+    customPlotDefinitions = [];
+    customPlotCounter = 0;
     let hasCache = false;
     let cacheText = "";
 
