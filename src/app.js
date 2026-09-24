@@ -76,6 +76,7 @@ const translations = {
     customChartName: "图表名称（可选）",
     customChartNamePlaceholder: "默认使用消息名.字段名",
     addCustomChart: "添加曲线",
+    deleteCustomChart: "删除自定义绘图",
     noCustomFields: "当前日志中没有可绘制的数值字段。",
     customChartAddFailed: "无法绘制所选字段。",
     customChartTitle: "自定义绘图",
@@ -225,6 +226,7 @@ const translations = {
     customChartName: "Chart name (optional)",
     customChartNamePlaceholder: "Defaults to message.field",
     addCustomChart: "Add Curve",
+    deleteCustomChart: "Delete custom plot",
     noCustomFields: "This log has no plottable numeric fields.",
     customChartAddFailed: "The selected field could not be plotted.",
     close: "Close",
@@ -2394,7 +2396,7 @@ function renderTrajectoryFigure(trajectory) {
   `;
 }
 
-function renderTimeSeriesFigure(series) {
+function renderTimeSeriesFigure(series, { removable = false } = {}) {
   if (series.error) {
     return `<div class="chart-module-empty">${escapeHtml(series.error)}</div>`;
   }
@@ -2416,6 +2418,7 @@ function renderTimeSeriesFigure(series) {
         <button class="icon-button" type="button" data-chart-action="open-${escapeHtml(chart.id)}-dialog" aria-label="${escapeHtml(t("expandImage"))}"></button>
         <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-image" aria-label="${escapeHtml(t("downloadImage"))}"></button>
         <button class="icon-button" type="button" data-chart-action="download-${escapeHtml(chart.id)}-csv" aria-label="${escapeHtml(t("downloadCsv"))}"></button>
+        ${removable ? `<button class="icon-button delete-custom-chart-button" type="button" data-chart-action="delete-${escapeHtml(chart.id)}" aria-label="${escapeHtml(t("deleteCustomChart"))}"></button>` : ""}
       </div>
     </article>
   `;
@@ -2464,7 +2467,18 @@ function appendCustomChartFigure(container, result, chart) {
     container.append(error);
     return;
   }
-  container.insertAdjacentHTML("beforeend", renderTimeSeriesFigure(series));
+  container.insertAdjacentHTML("beforeend", renderTimeSeriesFigure(series, { removable: true }));
+  const figure = container.lastElementChild;
+  const deleteButton = figure.querySelector(`[data-chart-action="delete-${CSS.escape(chart.id)}"]`);
+  if (deleteButton) {
+    inlineSvgIcon(deleteButton, "close");
+    deleteButton.title = t("deleteCustomChart");
+    deleteButton.addEventListener("click", () => {
+      customPlotDefinitions = customPlotDefinitions.filter((definition) => definition.id !== chart.id);
+      window.Plotly?.purge(figure.querySelector(`#${CSS.escape(chart.id)}Plot`));
+      figure.remove();
+    });
+  }
   lastStateSegments = getStateSegments(result);
   renderTimeSeriesPlot(series);
 }

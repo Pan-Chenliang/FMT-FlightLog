@@ -976,6 +976,12 @@ button.cancel-transfer:hover {
   flex: none !important;
 }
 
+.chart-actions .delete-custom-chart-button svg,
+.chart-actions .delete-custom-chart-button img {
+  width: 74%;
+  height: 74%;
+}
+
 .fc-controls {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
