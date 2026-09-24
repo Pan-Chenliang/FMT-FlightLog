@@ -528,6 +528,66 @@ th {
   padding: var(--chart-pad);
 }
 
+.custom-chart-builder {
+  display: grid;
+  gap: var(--chart-pad);
+}
+
+.custom-chart-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.custom-chart-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.custom-chart-form select,
+.custom-chart-form input {
+  min-width: 0;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
+.custom-chart-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  justify-self: start;
+  border: 1px solid #b9cceb;
+  background: #fff;
+  color: var(--primary);
+  line-height: 1;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.custom-chart-form button:hover {
+  border-color: var(--primary);
+  background: #f3f7ff;
+  color: var(--primary-dark);
+}
+
+.custom-chart-results {
+  display: grid;
+  gap: var(--chart-pad);
+}
 .chart-module-empty {
   padding: 22px 16px;
   border: 1px dashed var(--line);
